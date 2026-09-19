@@ -27,7 +27,7 @@ Pitch: **"Prove you're a trusted agent. Don't say which one."** ERC-8004 reputat
 - **description:** `snarkjs zkey export solidityverifier merkle_final.zkey` → `Groth16Verifier.sol`. `PassportRegistry`: `setRoot(root)` (issuer only), `verifyPassport(proof, root, serviceId, nullifier)` → checks root == current root, verifier ok, nullifier unused per `serviceId`.
 - **acceptance:** valid proof passes; wrong root / replayed nullifier reverts.
 - **tests:** Foundry with a fixture proof generated off-chain (`test/fixtures/proof.json`); fuzz on bad inputs.
-- **comments:** circuit has no nullifier signal → v1 nullifier = `keccak(serviceId, signature over challenge)` checked off-chain in the gate; on-chain we only verify membership. Upgrade to circuit nullifier if time.
+- **comments:** 9/9 forge tests pass with a real proof fixture (`scripts/gen-fixture.mjs`). `via_ir` needed for ReputationRegistry event. Circuit has no nullifier signal → v1 nullifier = `keccak(serviceId, signature over challenge)` checked off-chain in the gate; on-chain we only verify membership. Upgrade to circuit nullifier if time.
 
 ## T3 — Passport issuer script (TS)
 - **status:** todo

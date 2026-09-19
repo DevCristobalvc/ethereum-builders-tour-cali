@@ -1,0 +1,14 @@
+{
+  "name": "passport-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fixture": "node gen-fixture.mjs",
+    "issue": "node issue-passports.mjs"
+  },
+  "dependencies": {
+    "zkpjwt-core": "^0.1.1",
+    "snarkjs": "^0.7.5",
+    "viem": "^2.21.0"
+  }
+}
