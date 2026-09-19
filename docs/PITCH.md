@@ -41,9 +41,9 @@ Frase para HashKey: **"Compliant but private."**
 >
 > Yo veo exactamente qué quiere hacer, en lenguaje humano. Apruebo con FaceID.
 >
-> *(El teléfono firma y envía la tx a HashKey Chain → el relay devuelve el hash → Claude sigue trabajando y muestra el link al explorer.)*
+> *(El teléfono firma UNA tx: `AgentPassport.pay()` en HashKey Chain → el relay devuelve el hash → Claude sigue trabajando y muestra el link al explorer.)*
 >
-> Listo. Humano en el loop, en 15 segundos, desde el celular. Y esto quedó **on-chain**: aquí en el explorer está el registro ERC-8004 (yo soy el dueño del pasaporte, el agente solo tiene una dirección) y la visa `transfer:demoUSDT` con límite de 100 y el gasto registrado.
+> Listo. Humano en el loop, en 15 segundos, desde el celular. Y esto quedó **on-chain**: aquí en el explorer está el registro ERC-8004 (yo soy el dueño del pasaporte, el agente solo tiene una dirección) y la visa de demoUSDT con su límite y el gasto registrado. Y si el agente pide más del límite, **el contrato revierte** — no es una regla del servidor, es on-chain.
 
 ### 2:15 – 2:45 · Por qué importa / por qué HashKey
 
@@ -62,7 +62,7 @@ Frase para HashKey: **"Compliant but private."**
 ## Q&A probables
 
 ### "¿Por qué la passkey no firma la transacción on-chain directamente?"
-Hoy la passkey (WebAuthn / secp256r1) protege la llave **dentro del dispositivo**: FaceID desbloquea una EOA secp256k1 guardada en el Secure Enclave / IndexedDB cifrado, y esa EOA firma la tx. Es lo que funciona en cualquier EVM sin precompiles. El roadmap es **RIP-7212** (precompile P-256, ya en varias OP-stack L2s) + **account abstraction (ERC-4337)** para que la passkey sea directamente el signer de una smart account. Como el humano es simplemente el *owner* del NFT ERC-8004, puede ser una EOA hoy y una smart account mañana sin cambiar `AgentPassport`.
+Respuesta honesta: la passkey **no** firma on-chain. La passkey (WebAuthn / P-256) protege la llave **dentro del dispositivo**: en iOS 18+ usamos la extensión **PRF** de WebAuthn para derivar un secreto que cifra (AES-GCM) la EOA secp256k1; sin PRF, la passkey igual exige FaceID antes de cada firma. Esa EOA es la que firma la tx. Es lo que funciona en cualquier EVM sin precompiles. El roadmap es **RIP-7212** (precompile P-256, ya en varias OP-stack L2s) + **account abstraction (ERC-4337)** para que la passkey sea directamente el signer de una smart account. Como el humano es simplemente el *owner* del NFT ERC-8004, puede ser una EOA hoy y una smart account mañana sin cambiar `AgentPassport`.
 
 ### "¿Por qué HashKey Chain?"
 Tres razones: (1) es una L2 OP-stack EVM-compatible, así que todo el stack (Foundry, viem, ERC-8004) corre sin cambios; (2) su narrativa es **compliance + RWA + stablecoins reguladas** — exactamente el contexto donde "un agente movió dinero y nadie sabe quién lo autorizó" es inaceptable; (3) PAP le da a HashKey una primitiva que nadie más tiene: autorización de agentes **auditable pero privada**.
@@ -73,6 +73,9 @@ Nada que el humano no haya aprobado explícitamente. El agente **no tiene llave*
 ### "¿Y el sybil? ¿Un humano puede crear mil agentes?"
 Sí, y no es un problema para este modelo: la garantía no es "1 humano = 1 agente" sino **"este agente tiene un humano responsable con permisos acotados"**. Si un servicio necesita proof-of-personhood, el `register` puede exigir una credencial (World ID, ZK passport) como condición — está en el roadmap ZK y ya existe el patrón (`agent-passport` de World ID × ERC-8004). Además, la reputación ERC-8004 (`ReputationRegistry`) se acumula por agente, así que crear mil agentes nuevos = mil agentes sin reputación.
 
+### "¿Por qué una sola tx `pay()` y no `transfer` + `record`?"
+Porque así el límite se aplica **atómicamente en el contrato**: `pay()` verifica el grant (scope, límite, expiración), mueve los tokens y registra el uso en la misma tx. Un agente no puede "transferir y olvidarse de registrar". Lo probamos: 500 demoUSDT sobre un límite de 100 revierte con `LimitExceeded()`. `record()` queda para acciones que no son transferencias de tokens (iteración 2, gate x402).
+
 ### "¿En qué se diferencia de un multisig / Safe con módulo?"
 Un Safe protege *una* wallet con *n* firmantes humanos. PAP resuelve el caso inverso: *un* humano supervisando *n* agentes autónomos, con permisos por alcance, e integración nativa en el loop del agente vía **MCP** (el agente literalmente tiene una tool "pide permiso"). Y el vínculo humano→agente es público y verificable por terceros con una sola llamada, sin exponer al humano.
 
@@ -80,7 +83,7 @@ Un Safe protege *una* wallet con *n* firmantes humanos. PAP resuelve el caso inv
 Porque ya está en mainnet desde enero 2026 y es el estándar que la industria está adoptando para identidad de agentes (Identity + Reputation + Validation registries). Nuestro `IdentityRegistry` es interface-compatible, y el vínculo humano→agente es literalmente el `register(agentURI, agentWallet)` del estándar (humano = owner del NFT): cualquier agente ERC-8004 existente puede recibir grants de PAP sin re-registrarse.
 
 ### "¿Cuánto de esto funciona hoy?"
-Contratos ERC-8004 + Groth16 verifier + PassportRegistry: desplegados y con tests (9/9). AgentPassport, relay en Vercel, PWA con passkey y MCP server: lo que vieron en la demo, en HashKey testnet. El gate x402 y la prueba ZK son las siguientes dos iteraciones; el circuito y el verificador ya existen (`zkpjwt-core`, lib nuestra en npm).
+Todo lo que vieron corre en HashKey testnet: 6 contratos desplegados (`deployments/133.json`), relay + PWA en `pap.devcristobalvc.com`, MCP server en el repo (`.mcp.json`, abren el repo en Claude Code y ya está). Tenemos el E2E probado: 10 demoUSDT aprobados (tx `0xe152…b04e23`) y 500 demoUSDT rechazados on-chain por `LimitExceeded()`. Groth16 verifier + PassportRegistry también desplegados y con tests (9/9) para la iteración ZK; el circuito es `zkpjwt-core`, lib nuestra en npm. Lo que falta: el gate x402 (iteración 2) y conectar la prueba ZK al gate (iteración 3).
 
 ### "¿Qué pasa si se pierde el teléfono?"
 El humano es el owner del ERC-721: se transfiere el NFT a la nueva wallet (o el owner puede ser una wallet fría / Safe desde el inicio) y se re-otorgan los grants. Los grants expiran solos. Es el mismo modelo de recuperación que cualquier NFT.

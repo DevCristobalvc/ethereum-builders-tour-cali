@@ -6,7 +6,7 @@
 
 | Pantalla | Qué muestra |
 |---|---|
-| Laptop (proyector) | Terminal con Claude Code a fuente grande (>= 18 pt) + pestaña del explorer de HashKey testnet |
+| Laptop (proyector) | Terminal con Claude Code a fuente grande (>= 18 pt) + pestaña `/show/request/:id` (QR grande, el MCP la abre solo) + pestaña del explorer `testnet-explorer.hskchain.net` |
 | iPhone (espejado con QuickTime / cámara del laptop apuntando) | PWA `pap.devcristobalvc.com` |
 
 Si no hay forma de espejar el iPhone: apuntar la cámara del laptop al teléfono y dejar la ventana de la cámara en un cuarto de la pantalla.
@@ -18,11 +18,13 @@ Si no hay forma de espejar el iPhone: apuntar la cámara del laptop al teléfono
 - [ ] Laptop cargado, modo "no molestar", brillo al máximo, fuente de terminal grande, tema claro
 - [ ] iPhone cargado, brillo al máximo, modo avión **apagado**, datos móviles activos (no depender del wifi de ICESI)
 - [ ] PWA instalada en el iPhone (Safari → Compartir → Añadir a inicio), passkey creada, sesión abierta
-- [ ] Dirección del teléfono tiene **HSK para gas** (faucet el sábado, 0.01 HSK/día) y **demoUSDT** (`faucet()`)
-- [ ] `pap_connect` hecho el sábado: agente registrado en `IdentityRegistry` desde el teléfono (teléfono = owner) y `grant(transfer:demoUSDT, límite 100)` — nada de esto el domingo
+- [ ] Dirección del teléfono tiene **HSK para gas** (`/api/fund` da 0.002 HSK al crear la wallet; si se acabó, faucet https://hskchain.net/faucet) y **demoUSDT** (el onboarding llama `faucet()` = 1000)
+- [ ] `pap_connect` hecho el sábado: onboarding de 4 txs desde el teléfono (`register` → `faucet` → `approve` → `grant` con límite 100) — nada de esto el domingo. Verificar con `pap_status`
 - [ ] Relay desplegado en Vercel y respondiendo (`curl https://pap.devcristobalvc.com/api/health`)
-- [ ] MCP `pap` cargado desde `.mcp.json` en la raíz del repo (`claude mcp list` → `pap … Connected`), `PAP_RELAY_URL` apuntando a producción, `~/.pap/agent.json` presente
-- [ ] Explorer abierto en la dirección del contrato `AgentPassport` (pestaña lista, ya cargada)
+- [ ] MCP `pap` cargado desde `.mcp.json` en la raíz del repo (`claude mcp list` → `pap … Connected`), `~/.pap/agent.json` presente
+- [ ] Contacto `oracle` agregado (`pap_contact_add`) para poder decir "paga 5 demoUSDT a oracle"
+- [ ] Explorer abierto en `AgentPassport` `0xCE112FD67B0E19a2eeD894dDD3a5B445989A6e7B` (pestaña lista, ya cargada)
+- [ ] Simulador de teléfono listo en otra terminal (`node web/scripts/phone-sim.mjs`) — plan B si el iPhone falla en vivo
 - [ ] Video plan B descargado **localmente** (no depender de YouTube/wifi), abierto en un reproductor en pausa
 - [ ] Hotspot del celular listo como respaldo de internet del laptop
 - [ ] Una segunda persona del equipo con el repo abierto por si hay que mostrar código en Q&A
@@ -42,13 +44,14 @@ Opcional: mostrar `cat .env` → no hay `PRIVATE_KEY`. Es un detalle que los jue
 Juan escribe en Claude Code:
 
 ```
-Paga 5 demoUSDT al oráculo 0x<ORACLE_ADDR> por la consulta de precio.
+Paga 5 demoUSDT a oracle por la consulta de precio.
 ```
+(`oracle` es un contacto de `pap_contact_add`; también vale la dirección 0x)
 
 Claude decide llamar `pap_transfer`. Narrar: *"El agente no puede pagar. Lo único que puede hacer es pedir permiso."*
 
 ### 3. QR en terminal (5 s)
-Aparece el QR ASCII + link `/show/:id` (abrirlo en el laptop si el QR de la terminal se ve mal en el proyector). Narrar: *"Esto va a mi teléfono."*
+Aparece el QR ASCII en la terminal y el MCP abre `/show/request/:id` en el browser (QR grande, usar esa para el proyector). Narrar: *"Esto va a mi teléfono."*
 
 ### 4. Aprobación en iPhone (20 s)
 Escanear el QR con la cámara → abre la PWA en `/approve/:id`:
@@ -58,7 +61,7 @@ Escanear el QR con la cámara → abre la PWA en `/approve/:id`:
 > [ Aprobar ] [ Rechazar ]
 
 Narrar: *"Veo exactamente qué quiere hacer, en lenguaje humano, y el límite que yo le puse."*
-Tocar **Aprobar** → FaceID → el teléfono firma y envía la tx a HashKey → "Enviado ✓ + hash".
+Tocar **Aprobar** → FaceID → el teléfono firma **una** tx `AgentPassport.pay()` en HashKey → "Enviado ✓ + hash".
 
 ### 5. El agente continúa (15 s)
 Volver al laptop: Claude recibió `{txHash, explorerUrl}` y sigue: *"Pago enviado, aquí está el link."*
@@ -67,16 +70,22 @@ Clic en el link → pestaña del explorer con la tx confirmada (HashKey testnet 
 Narrar: *"Humano en el loop, 15 segundos, desde el celular. El agente nunca tocó una llave."*
 
 ### 6. Lo que quedó on-chain (15 s)
-Cambiar a la pestaña del contrato `AgentPassport` en el explorer → eventos `PermissionGranted` y `ActionRecorded` (y en `IdentityRegistry` el `Registered` con owner = teléfono).
+Cambiar a la pestaña del contrato `AgentPassport` en el explorer → eventos `PermissionGranted` y `Paid` (y en `IdentityRegistry` el `Registered` con owner = teléfono).
+
+**Remate opcional (10 s, si hay tiempo):** pedirle a Claude *"ahora paga 500 demoUSDT a oracle"* → aprobar en el teléfono → la tx **revierte** con `LimitExceeded()`. Narrar: *"El límite no es una regla del servidor, es del contrato."* (Ya probado: funciona.)
 Narrar: *"Cualquier servicio puede verificar que este agente está autorizado por un humano real, con alcance y límite, sin saber quién es el humano. Compliant but private."*
 
 → Volver al guion del pitch (roadmap y cierre).
 
 ---
 
-## Plan B — video (si algo falla)
+## Plan B1 — simulador de teléfono (si el iPhone falla)
 
-Grabar el sábado en la noche, cuando el flujo funcione end-to-end por primera vez.
+`node web/scripts/phone-sim.mjs` en una terminal aparte aprueba las solicitudes como si fuera el teléfono (firma con una wallet de prueba). El flujo Claude → MCP → relay → chain se ve igual; solo se pierde la parte de FaceID. Decir: *"el teléfono no está cooperando con el wifi, les muestro el mismo flujo con el simulador — el contrato es el mismo"*.
+
+## Plan B2 — video (si falla todo)
+
+Grabar el sábado en la noche (el E2E ya funciona).
 
 - **Formato:** grabación de pantalla del laptop (OBS o Win+G) con el iPhone espejado o en cámara. 60–75 s. Sin música, sin voz (se narra en vivo encima).
 - **Contenido:** exactamente los pasos 2 → 6 de arriba, sin cortes.
@@ -99,7 +108,8 @@ Decir: *"Les muestro la grabación de esta mañana mientras la red se pone de ac
 | Claude no llama `pap_transfer` | MCP no conectado / `.mcp.json` no cargado | `claude mcp list`; reiniciar Claude Code desde la raíz del repo; prompt más explícito: "usa la tool pap_transfer" |
 | `pap_transfer` dice que no hay agente | `~/.pap/agent.json` ausente | Correr `pap_connect` (ya debería estar hecho el sábado) |
 | QR abre pero PWA dice "request not found" | Relay reiniciado (in-memory) o URL distinta | Repetir el paso 2; verificar `PAP_RELAY_URL` en el MCP |
-| Teléfono firma pero tx revierte | `canAct` false (límite agotado / grant expirado) | `revoke` + `grant` de nuevo desde el teléfono; verificar `getGrant` en el explorer |
+| Teléfono firma pero tx revierte `LimitExceeded` / expirado | Límite acumulado agotado por los ensayos o grant vencido | `revoke` + `grant` de nuevo desde el teléfono (o re-hacer `pap_connect`); verificar `getGrant` en el explorer. Ensayar con montos pequeños (1–5) para no agotar los 100 |
+| Teléfono sin gas | `/api/fund` ya dio sus 0.002 HSK y se gastaron | Faucet https://hskchain.net/faucet o mandar HSK desde la wallet deployer |
 | "insufficient funds" en el teléfono | Sin HSK para gas | Faucet ya no da más ese día → usar la dirección de respaldo (fondearla el sábado) |
 | Tx enviada pero Claude sigue esperando | Poll (hasta 5 min) / relay no recibió `resolve` | Mostrar el hash desde el teléfono en el explorer; explicar que el agente reintenta |
 | Wifi de ICESI caído | — | Hotspot del celular al laptop; el teléfono ya va por datos |
