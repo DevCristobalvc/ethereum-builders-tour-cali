@@ -10,3 +10,8 @@ contracts/cache/
 contracts/broadcast/**/dry-run/
 *.log
 .DS_Store
+
+# MCP bundle is committed on purpose: judges get a zero-install server
+!mcp/dist/
+mcp/dist/*
+!mcp/dist/pap.mjs
