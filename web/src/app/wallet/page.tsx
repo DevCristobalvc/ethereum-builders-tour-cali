@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatEther, formatUnits } from "viem";
+import { Agents } from "@/components/Agents";
 import { WalletGate } from "@/components/WalletGate";
 import { AddrLink, Button, Card, Notice, Row, Shell, Status, short } from "@/components/ui";
 import { ADDRESSES, DEMO_TOKEN_DECIMALS, TOKEN_SYMBOL } from "@/lib/chain";
@@ -79,6 +80,8 @@ function Dashboard({ w }: { w: StoredWallet }) {
           ))}
         </div>
       </Card>
+
+      <Agents owner={w.address} />
 
       {history.length > 0 && (
         <Card>

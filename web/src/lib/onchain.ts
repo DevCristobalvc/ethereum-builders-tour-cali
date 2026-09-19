@@ -6,6 +6,7 @@ import {
   http,
   keccak256,
   maxUint256,
+  parseAbiItem,
   parseEventLogs,
   parseUnits,
   toBytes,
@@ -105,15 +106,37 @@ export async function payViaPassport(pk: Hex, agentId: bigint, token: Address, t
   return hash;
 }
 
-export async function readGrant(agentId: bigint, token: Address) {
+export type Grant = { limit: bigint; spent: bigint; expiry: bigint; active: boolean };
+export async function readGrant(agentId: bigint, token: Address): Promise<Grant> {
   const passport = need("AgentPassport");
-  const r = (await pub.readContract({
+  const [limit, spent, expiry, active] = (await pub.readContract({
     address: passport,
     abi: ABI.AgentPassport,
     functionName: "getGrant",
     args: [agentId, transferScope(token)],
-  })) as readonly unknown[] | Record<string, unknown>;
-  return r;
+  })) as [bigint, bigint, bigint, boolean];
+  return { limit, spent, expiry, active };
+}
+
+/** AgentPassport deploy block on HSK testnet — start of the stamp history. */
+const PASSPORT_DEPLOY_BLOCK = 33334362n;
+export type Stamp = { txHash: Hex; token: Address; to: Address; amount: bigint; by: Address; block: bigint };
+
+/** Every payment this agent's passport has been stamped with (Paid events). */
+export async function readStamps(agentId: bigint): Promise<Stamp[]> {
+  const passport = need("AgentPassport");
+  const logs = await pub.getLogs({
+    address: passport,
+    event: parseAbiItem(
+      "event Paid(uint256 indexed agentId, address indexed token, address indexed to, uint256 amount, bytes32 ref, address by)"
+    ),
+    args: { agentId },
+    fromBlock: PASSPORT_DEPLOY_BLOCK,
+    toBlock: "latest",
+  });
+  return logs
+    .map((l) => ({ txHash: l.transactionHash, token: l.args.token!, to: l.args.to!, amount: l.args.amount!, by: l.args.by!, block: l.blockNumber }))
+    .reverse();
 }
 
 export async function tokenBalance(owner: Address) {
