@@ -61,6 +61,24 @@ cast call --rpc-url $R $AP 'getGrant(uint256,bytes32)(uint256,uint256,uint64,boo
 cast call --rpc-url $R $AP 'canAct(uint256,bytes32,uint256)(bool)' 6 $SCOPE 500000000   # false
 ```
 
+## Gas on HSK Chain
+
+Measured from the real testnet receipts of the AgentPay run (gas price 1 gwei; HSK ≈ USD 0.5 → 1 M gas ≈ $0.0005).
+
+| Operation | Signer | Gas | Cost @1 gwei |
+|---|---|---|---|
+| `register(uri, agentKey)` (ERC-8004 mint) | human, once | 190 180 | 0.000190 HSK |
+| `approve(passport, max)` | human, once | 46 269 | 0.000046 HSK |
+| `grant(agentId, scope, limit, expiry)` (issue visa) | human | 77 369 | 0.000077 HSK |
+| **`pay(agentId, token, to, amount, ref)`** (agent, autonomous) | agent key | **81 286** | **0.000081 HSK** |
+| `record(agentId, scope, 1, ref)` (non-transfer action) | agent key | ~43 000 (forge median) | 0.000043 HSK |
+| `revoke(agentId, scope)` | human | ~29 800 (forge) | 0.000030 HSK |
+
+Onboarding a new agent end-to-end (register + approve + grant) ≈ 314 k gas ≈ **0.0003 HSK**;
+each autonomous payment afterwards ≈ 81 k gas, i.e. ~25 % over a plain ERC-20 `transferFrom`
+for the on-chain visa check + audit trail. Deploying all six contracts cost 3.79 M gas (0.0038 HSK).
+Regenerate: `forge test --gas-report`.
+
 ## Visas for any action — scope convention
 
 `AgentPassport` never interprets a scope: it is any `bytes32`. `grant` / `record` / `canAct` work

@@ -64,7 +64,7 @@ contract ReputationRegistry {
         }
         Feedback[] storage list = _feedback[agentId][msg.sender];
         uint64 index = uint64(list.length);
-        list.push(Feedback(value, valueDecimals, tag1, tag2, false));
+        list.push(Feedback({value: value, valueDecimals: valueDecimals, tag1: tag1, tag2: tag2, isRevoked: false}));
 
         emit NewFeedback(
             agentId, msg.sender, index, value, valueDecimals, tag1, tag1, tag2, endpoint, feedbackURI, feedbackHash
@@ -99,7 +99,9 @@ contract ReputationRegistry {
 
     function _copy(address[] calldata a) private pure returns (address[] memory m) {
         m = new address[](a.length);
-        for (uint256 i = 0; i < a.length; i++) m[i] = a[i];
+        for (uint256 i = 0; i < a.length; i++) {
+            m[i] = a[i];
+        }
     }
 
     function readFeedback(uint256 agentId, address clientAddress, uint64 feedbackIndex)
