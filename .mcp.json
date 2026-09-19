@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pap": {
+      "command": "node",
+      "args": ["mcp/dist/index.js"],
+      "env": {
+        "PAP_RELAY_URL": "https://pap.devcristobalvc.com"
+      }
+    }
+  }
+}

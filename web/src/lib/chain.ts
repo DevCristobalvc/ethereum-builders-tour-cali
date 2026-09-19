@@ -1,4 +1,4 @@
-import { defineChain, type Address, keccak256, toBytes } from "viem";
+import { concatHex, defineChain, keccak256, stringToHex, type Address } from "viem";
 import abis from "@/generated/abis.json";
 import deployments from "@/generated/deployments.json";
 
@@ -23,5 +23,5 @@ export const ABI = abis as Record<keyof typeof abis, readonly unknown[]>;
 export const DEMO_TOKEN_DECIMALS = 6;
 export const TOKEN_SYMBOL = "demoUSDT";
 
-/** AgentPassport scope for ERC-20 transfers of a given token. */
-export const transferScope = (token: Address) => keccak256(toBytes(`transfer:${token.toLowerCase()}`));
+/** AgentPassport scope for ERC-20 transfers of a token = keccak256(abi.encodePacked("transfer:", token)). */
+export const transferScope = (token: Address) => keccak256(concatHex([stringToHex("transfer:"), token]));

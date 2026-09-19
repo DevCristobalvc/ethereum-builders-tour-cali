@@ -6,6 +6,7 @@ import {
   http,
   keccak256,
   maxUint256,
+  parseEventLogs,
   parseUnits,
   toBytes,
   type Address,
@@ -67,10 +68,12 @@ export async function onboardAgent(
     return rc;
   };
 
-  await run(0, () =>
+  const regRc = await run(0, () =>
     client.writeContract({ address: identity, abi: ABI.IdentityRegistry, functionName: "register", args: [agentURI, agentAddress] })
   );
-  const agentId = (await pub.readContract({ address: identity, abi: ABI.IdentityRegistry, functionName: "agentIdOf", args: [agentAddress] })) as bigint;
+  // Take the id from the Registered event: an eth_call right after the receipt can hit a lagging RPC node.
+  const [reg] = parseEventLogs({ abi: ABI.IdentityRegistry as never, eventName: "Registered", logs: regRc.logs });
+  const agentId = (reg as unknown as { args: { agentId: bigint } }).args.agentId;
 
   await run(1, () => client.writeContract({ address: token, abi: ABI.DemoUSDT, functionName: "faucet", args: [] }));
   await run(2, () => client.writeContract({ address: token, abi: ABI.DemoUSDT, functionName: "approve", args: [passport, maxUint256] }));
