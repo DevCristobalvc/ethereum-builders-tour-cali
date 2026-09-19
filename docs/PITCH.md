@@ -53,7 +53,7 @@ Frase para HashKey: **"Compliant but private."**
 
 ### 2:45 – 3:00 · Roadmap y cierre
 
-> Lo que ven es la iteración 1. Iteración 2: un gate estilo **x402** que devuelve `402`, verifica la visa on-chain y responde `200`. Iteración 3, que ya tenemos investigada y con contratos probados: **pasaporte ZK** — el agente prueba con Groth16 que *es uno de los autorizados* sin revelar *cuál*.
+> Lo que vieron es la iteración 1. La iteración 2 también está viva: un gate estilo **x402** — `GET /api/gate/oracle` responde `402` con un reto, el agente lo firma, el gate verifica la visa on-chain y responde `200`. Cualquier servicio puede poner esa frontera en 100 líneas. Iteración 3, ya investigada y con contratos desplegados: **pasaporte ZK** — el agente prueba con Groth16 que *es uno de los autorizados* sin revelar *cuál*.
 >
 > Passport Agent Protocol. Gracias.
 
@@ -83,7 +83,7 @@ Un Safe protege *una* wallet con *n* firmantes humanos. PAP resuelve el caso inv
 Porque ya está en mainnet desde enero 2026 y es el estándar que la industria está adoptando para identidad de agentes (Identity + Reputation + Validation registries). Nuestro `IdentityRegistry` es interface-compatible, y el vínculo humano→agente es literalmente el `register(agentURI, agentWallet)` del estándar (humano = owner del NFT): cualquier agente ERC-8004 existente puede recibir grants de PAP sin re-registrarse.
 
 ### "¿Cuánto de esto funciona hoy?"
-Todo lo que vieron corre en HashKey testnet: 6 contratos desplegados (`deployments/133.json`), relay + PWA en `pap.devcristobalvc.com`, MCP server en el repo (`.mcp.json`, abren el repo en Claude Code y ya está). Tenemos el E2E probado: 10 demoUSDT aprobados (tx `0xe152…b04e23`) y 500 demoUSDT rechazados on-chain por `LimitExceeded()`. Groth16 verifier + PassportRegistry también desplegados y con tests (9/9) para la iteración ZK; el circuito es `zkpjwt-core`, lib nuestra en npm. Lo que falta: el gate x402 (iteración 2) y conectar la prueba ZK al gate (iteración 3).
+Todo lo que vieron corre en HashKey testnet: 6 contratos desplegados (`deployments/133.json`), relay + PWA en `pap.devcristobalvc.com`, MCP server en el repo (`.mcp.json`, abren el repo en Claude Code y ya está). Tenemos el E2E probado: 10 demoUSDT aprobados (tx `0xe152…b04e23`) y 500 demoUSDT rechazados on-chain por `LimitExceeded()`. Groth16 verifier + PassportRegistry también desplegados y con tests (9/9) para la iteración ZK; el circuito es `zkpjwt-core`, lib nuestra en npm. El gate x402 (`/api/gate/oracle`, `docs/GATE.md`) también funciona. Lo que falta: conectar la prueba ZK al gate (iteración 3).
 
 ### "¿Qué pasa si se pierde el teléfono?"
 El humano es el owner del ERC-721: se transfiere el NFT a la nueva wallet (o el owner puede ser una wallet fría / Safe desde el inicio) y se re-otorgan los grants. Los grants expiran solos. Es el mismo modelo de recuperación que cualquier NFT.

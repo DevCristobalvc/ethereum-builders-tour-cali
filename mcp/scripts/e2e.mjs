@@ -59,6 +59,11 @@ try {
   phone("reject", reqId2);
 }
 await call("pap_wait", { kind: "request", id: reqId2 });
+
+// Iteration 2: the agent accesses a visa-gated service on its own (x402-style handshake)
+out = await call("pap_call_gate", {});
+if (!/ACCESS GRANTED/.test(out)) throw new Error("gate denied a paired agent");
+
 await call("pap_status");
 await client.close();
 console.log("\nE2E OK");

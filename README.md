@@ -66,7 +66,7 @@ contracts/   Foundry — IdentityRegistry (ERC-8004), AgentPassport, DemoUSDT,
 web/         Next.js — PWA (passkey wallet, pair/approve/show pages) + relay API (Vercel Blob)
 mcp/         PAP MCP server — pap_connect, pap_transfer, pap_wait, pap_status, pap_contact_add
 .mcp.json    Registers the MCP server in Claude Code when you open the repo
-docs/        STATE_OF_THE_ART.md, PITCH.md, DEMO.md
+docs/        PITCH.md, DEMO.md, VIDEO.md, SUBMISSION.md, GATE.md, STATE_OF_THE_ART.md, RESOURCES.md
 scripts/     Fixture / tooling scripts
 deployments/ Contract addresses per network
 todo.md      Iterative plan & status
@@ -159,7 +159,7 @@ Gas: `/api/fund` sends 0.002 HSK to new phone wallets (testnet only).
 | Phase | Scope | Status |
 |---|---|---|
 | **1 — Onboarding + approved payment** | `pap_connect`: register agent (ERC-8004) + grant from the phone; `pap_transfer`: approve a demoUSDT payment from iPhone via MCP, enforced on-chain by `pay()` | **done — live on HSK testnet** |
-| **2 — x402-style gate** | API returns `402`; agent presents its `agentId` + signature; gate verifies `AgentPassport.canAct` and returns `200` | next |
+| **2 — x402-style gate** | `GET /api/gate/oracle` returns `402` + challenge; agent signs it; gate checks `getAgentWallet(agentId)` and `canAct()` on-chain and returns `200` — see `docs/GATE.md` | **done — live** |
 | **3 — ZK passport** | Prove "I'm an authorized agent" via Groth16 membership over the passport set (`zkpjwt-core`, `PassportRegistry`) without revealing *which* agent — see `docs/STATE_OF_THE_ART.md` | researched, contracts + tests done |
 | Later | Nullifier inside the circuit, RIP-7212 / AA so the passkey signs on-chain directly, agent-to-agent payments | — |
 

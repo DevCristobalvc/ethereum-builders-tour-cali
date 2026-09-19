@@ -55,8 +55,10 @@ HOW IT WAS BUILT (Sep 19–20, Cali)
 - mcp/ — a Model Context Protocol server registered via .mcp.json: pap_connect, pap_transfer, pap_wait, pap_status, pap_contact_add. Open the repo in Claude Code and the agent has a "ask permission" tool. Agent identity lives in ~/.pap/agent.json — no private key anywhere on the agent side.
 - Phone simulator (web/scripts/phone-sim.mjs) and E2E script (mcp/scripts/e2e.mjs) for CI-style runs without a device.
 
+THE GATE (iteration 2, live)
+GET /api/gate/oracle is an x402-shaped border: the first request gets a 402 with a challenge; the agent signs it with its identity key and retries; the gate verifies the signature, checks on-chain that the key is the agent's wallet in IdentityRegistry and that canAct() is true on AgentPassport, and answers 200. Any service can put a "visa required" border in front of an endpoint with ~100 lines and no facilitator.
+
 WHAT'S NEXT
-- Iteration 2 — x402-style gate: an API answers 402, the agent presents its agentId + signature, the gate checks canAct() and answers 200.
 - Iteration 3 — ZK passport: prove "I am an authorized agent" with a Groth16 membership proof (zkpjwt-core, our own npm lib) without revealing which one. Verifier and registry already deployed; research in docs/STATE_OF_THE_ART.md.
 - RIP-7212 / account abstraction so the passkey signs on-chain directly; agent-to-agent payments.
 ```
@@ -85,6 +87,7 @@ Solidity, Foundry, ERC-8004, HashKey Chain, Next.js, TypeScript, viem, WebAuthn,
 | Agent-alone payment tx | https://testnet-explorer.hskchain.net/tx/0x629de0c7927fe7a44796698f1bb8c56d6a6d0f67d3ea1cda19541bc8c15c756f |
 | Demo video | **[OK CRISTÓBAL]** YouTube unlisted link — see `docs/VIDEO.md` |
 | Pitch | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/PITCH.md |
+| Gate (x402-shaped) | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/GATE.md |
 
 ## Cover image / logo
 

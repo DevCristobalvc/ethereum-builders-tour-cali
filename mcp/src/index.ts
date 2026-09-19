@@ -169,6 +169,40 @@ server.registerTool(
   }
 );
 
+server.registerTool(
+  "pap_call_gate",
+  {
+    title: "Call a visa-gated service (x402-style)",
+    description:
+      "Access a paid/protected HTTP resource that requires a valid agent visa, without asking the human: GET → 402 challenge → sign it with the agent identity key → GET again with X-PAP-VISA → 200 data. The service checks on-chain (HSK Chain) that this key belongs to the ERC-8004 agent and that its AgentPassport visa is active. Default resource: the demo price oracle at <relay>/api/gate/oracle.",
+    inputSchema: {
+      url: z.string().optional().describe("Resource URL. Defaults to the relay's demo oracle."),
+    },
+  },
+  async ({ url }) => {
+    const id = requireIdentity();
+    if (!id.agentId) throw new Error("Not paired. Call pap_connect first.");
+    const target = url ?? `${id.relay}/api/gate/oracle`;
+
+    const first = await fetch(target);
+    if (first.status === 200) return text(`200 (no visa required)
+${await first.text()}`);
+    if (first.status !== 402) throw new Error(`unexpected ${first.status} from ${target}`);
+    const offer = (await first.json()) as { accepts: { scheme: string; challenge: string; header?: string }[] };
+    const accept = offer.accepts?.find((a) => a.scheme === "pap-visa");
+    if (!accept) throw new Error("service does not accept pap-visa");
+
+    const payload = { agentAddress: id.address, agentId: id.agentId, challenge: accept.challenge };
+    const sig = await sign(id, "gate", payload);
+    const token = Buffer.from(JSON.stringify({ ...payload, sig })).toString("base64");
+    const res = await fetch(target, { headers: { [accept.header ?? "X-PAP-VISA"]: token } });
+    const body = await res.text();
+    if (res.status === 200) return text(`ACCESS GRANTED (visa verified on-chain, no human prompt).
+${body}`);
+    return text(`ACCESS DENIED ${res.status}: ${body}`);
+  }
+);
+
 function describe(st: RequestState | undefined, requestId: string, url: string, showUrl: string) {
   if (!st) return `Could not reach the relay. Request ${requestId} at ${url}`;
   switch (st.status) {

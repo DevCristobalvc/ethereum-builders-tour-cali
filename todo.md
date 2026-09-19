@@ -82,8 +82,8 @@ Split: **juan** = `web/` + `mcp/` · **william** = `contracts/` + HSK deploy · 
 
 ## Iteration 2 — x402-style gate that verifies permission on-chain
 
-### T9 — Gate API (`web/app/api/oracle`)
-- **status:** todo
+### T9 — Gate API (`web/src/app/api/gate/oracle`)
+- **status:** done — `docs/GATE.md`, test `web/scripts/gate-test.mjs`
 - **description:** `GET /api/oracle` -> `402` `{accepts:[{scheme:"pap-grant", scope, agentPassport, chainId:133}]}`. Retry with `X-PAP-AGENT: agentId` + `X-PAP-SIG: sig over challenge` -> server checks `canAct(agentId, scope, amount)` via viem read + signature recovers to `getAgentWallet(agentId)` -> `200` + payload, and `record`s the usage. Optional `X-PAYMENT: txHash` of a demoUSDT transfer.
 - **acceptance:** curl 402 -> 200 with a grant; 403 without / after `revoke`.
 - **comments:** mimic x402 header shape so judges recognize it; no external facilitator (none support HSK).

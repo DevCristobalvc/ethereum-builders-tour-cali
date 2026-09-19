@@ -204,8 +204,10 @@ export default function Landing() {
         <Label>What&apos;s next</Label>
         <ul className="flex flex-col gap-2 text-sm text-muted">
           <li>
-            <span className="font-semibold text-foreground">Iteration 2 — x402-style gate.</span> An API answers 402, the
-            agent presents its agentId, the gate checks <span className="font-mono">canAct()</span> and answers 200.
+            <span className="font-semibold text-foreground">Iteration 2 — x402-style gate (live).</span>{" "}
+            <span className="font-mono">GET /api/gate/oracle</span> answers 402 with a challenge; the agent signs it, the
+            gate checks the agent wallet on <span className="font-mono">IdentityRegistry</span> and{" "}
+            <span className="font-mono">canAct()</span> on-chain, and answers 200. See docs/GATE.md.
           </li>
           <li>
             <span className="font-semibold text-foreground">Iteration 3 — ZK passport.</span> Prove &ldquo;I am an
@@ -236,6 +238,11 @@ export default function Landing() {
           <li>
             <a className="text-accent hover:underline" href={`${REPO}/blob/main/docs/STATE_OF_THE_ART.md`} target="_blank" rel="noreferrer">
               State of the art — ERC-8004, x402, ZK credentials
+            </a>
+          </li>
+          <li>
+            <a className="text-accent hover:underline" href={`${REPO}/blob/main/docs/GATE.md`} target="_blank" rel="noreferrer">
+              Gate — x402-shaped visa check (iteration 2)
             </a>
           </li>
           <li>
