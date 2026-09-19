@@ -20,12 +20,12 @@ There is no middle ground: no way for a human to approve *this specific action* 
 PAP gives the agent an on-chain **passport** (ERC-8004 identity) and lets the human stamp **visas** (scoped permissions) on it from their phone with FaceID/passkey. The agent never sees a secret.
 
 1. Agent needs to pay for an API / send USDT / call a contract.
-2. It calls the PAP **MCP tool** → gets a QR + deep link.
+2. It calls the PAP **MCP tool** (`pap_transfer`) → gets a QR + link.
 3. Human scans it on the **PWA** (`pap.devcristobalvc.com`) → sees a plain-language request → confirms with **passkey / FaceID**.
 4. The phone signs the transaction on **HashKey Chain**.
 5. The relay hands the tx hash back to the agent, which carries on.
 
-The human→agent link and every granted permission live on-chain (`IdentityRegistry` + `AgentPassport`), so any service can verify "this agent is authorized by a real human for this scope" — without learning who the human is.
+The human→agent link is the ERC-8004 registration itself (`IdentityRegistry.register(agentURI, agentWallet)` — the human is the NFT owner, the agent only has a public address). Every permission is a **grant** on `AgentPassport` (`grant(agentId, scope, limit, expiry)`, we call them *visas*). Any service can check `canAct(agentId, scope, amount)` — "this agent is authorized by a real human for this scope" — without learning who the human is.
 
 **For HashKey Chain: compliant but private.** Auditable authorization trail, no exposed identities.
 
@@ -47,8 +47,8 @@ The human→agent link and every granted permission live on-chain (`IdentityRegi
                                                                      ▼
                                                             ┌──────────────────┐
                                                             │  HashKey Chain   │
-                                                            │  IdentityRegistry│ (ERC-8004)
-                                                            │  AgentPassport   │ (visas)
+                                                            │  IdentityRegistry│ (ERC-8004: human = owner, agent = wallet)
+                                                            │  AgentPassport   │ (grants / "visas": scope, limit, expiry)
                                                             │  DemoUSDT        │
                                                             └──────────────────┘
 ```
@@ -56,7 +56,7 @@ The human→agent link and every granted permission live on-chain (`IdentityRegi
 - **Agent side** never holds a private key. It only talks MCP.
 - **Relay** is stateless glue: it stores pending requests, serves the QR, and returns the signed result. It cannot sign.
 - **Phone** holds the key (passkey-protected). It is the only thing that can produce a signature.
-- **Chain** is the source of truth for *who* authorized *which agent* for *what scope*.
+- **Chain** is the source of truth for *who* authorized *which agent* for *what scope*, and records every action (`record`) against its limit.
 
 ## Monorepo layout
 
@@ -64,7 +64,7 @@ The human→agent link and every granted permission live on-chain (`IdentityRegi
 contracts/   Foundry — IdentityRegistry (ERC-8004), AgentPassport, DemoUSDT,
              Groth16Verifier + PassportRegistry (phase 3 ZK)
 web/         Next.js — PWA (approve screen, passkey, signer) + relay API routes
-mcp/         PAP MCP server — tools: pap_request_payment, pap_request_permission, pap_status
+mcp/         PAP MCP server — tools: pap_connect, pap_transfer, pap_status
 docs/        STATE_OF_THE_ART.md, PITCH.md, DEMO.md
 scripts/     Fixture / tooling scripts
 deployments/ Contract addresses per network
@@ -86,12 +86,33 @@ cd contracts && forge build && forge test
 # web (PWA + relay)
 cd web && npm install && npm run dev        # http://localhost:3000
 
-# mcp server (register in Claude Code)
+# mcp server — Claude Code loads it from .mcp.json at the repo root
 cd mcp && npm install && npm run build
-claude mcp add pap -- node ./mcp/dist/index.js
+export PAP_RELAY_URL=https://pap.devcristobalvc.com   # or http://localhost:3000
 ```
 
-Then, inside Claude Code: *"pay 5 demoUSDT to 0x… for the oracle call"* → the agent calls `pap_request_payment` → scan the QR with your phone → approve → the agent receives the tx hash.
+The agent's identity (address + name) lives in `~/.pap/agent.json`, created on first `pap_connect`. No private key anywhere on the agent side.
+
+Then, inside Claude Code:
+
+1. *"connect to PAP"* → `pap_connect` prints a QR → scan with your phone → register the agent (ERC-8004) and grant `transfer:demoUSDT` with a limit.
+2. *"pay 5 demoUSDT to 0x… for the oracle call"* → `pap_transfer` prints a QR → approve with FaceID → the agent receives the tx hash.
+
+### On-chain surface
+
+| Contract | Calls |
+|---|---|
+| `IdentityRegistry` (ERC-8004) | `register(agentURI, agentWallet) → agentId` (msg.sender = human, owner of the NFT) · `agentIdOf(agentWallet)` |
+| `AgentPassport` | `grant(agentId, scope, limit, expiry)` · `revoke(agentId, scope)` · `record(agentId, scope, amount, ref)` · `canAct(agentId, scope, amount)` · `getGrant(agentId, scope)` — scope = `keccak256("transfer:demoUSDT")` |
+| `DemoUSDT` | 6 decimals · `mint(to, amount)` · `faucet()` = 1,000 |
+
+### Relay API (`web/`, Vercel)
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/pair` `{agentAddress, agentName, sig}` → `{pairId, url}` · `GET /api/pair/:id` · `POST /api/pair/:id/approve` | Onboarding: phone registers the agent + grants |
+| `POST /api/requests` `{agentAddress, action:{type:"transfer", token, to, amount, memo}, sig}` → `{requestId, url}` · `GET /api/requests/:id` · `POST /api/requests/:id/resolve` | One action, one approval |
+| `/pair/:id`, `/approve/:id` (phone) · `/show/:id` (big QR on the laptop) | Pages |
 
 ## Tracks
 
@@ -102,8 +123,8 @@ Then, inside Claude Code: *"pay 5 demoUSDT to 0x… for the oracle call"* → th
 
 | Phase | Scope | Status |
 |---|---|---|
-| **1 — Onboarding + approved payment** | Register agent (ERC-8004), link phone, approve a USDT transfer from iPhone via MCP | in progress |
-| **2 — x402-style gate** | API returns `402`; agent presents on-chain permission; gate verifies `AgentPassport` and returns `200` | next |
+| **1 — Onboarding + approved payment** | `pap_connect`: register agent (ERC-8004) + grant from the phone; `pap_transfer`: approve a demoUSDT transfer from iPhone via MCP | in progress |
+| **2 — x402-style gate** | API returns `402`; agent presents its `agentId` + signature; gate verifies `AgentPassport.canAct` and returns `200` | next |
 | **3 — ZK passport** | Prove "I'm an authorized agent" via Groth16 membership over the passport set (`zkpjwt-core`, `PassportRegistry`) without revealing *which* agent — see `docs/STATE_OF_THE_ART.md` | researched, contracts + tests done |
 | Later | Nullifier inside the circuit, RIP-7212 / AA so the passkey signs on-chain directly, agent-to-agent payments | — |
 

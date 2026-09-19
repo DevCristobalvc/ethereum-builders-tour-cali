@@ -19,9 +19,9 @@ Si no hay forma de espejar el iPhone: apuntar la cámara del laptop al teléfono
 - [ ] iPhone cargado, brillo al máximo, modo avión **apagado**, datos móviles activos (no depender del wifi de ICESI)
 - [ ] PWA instalada en el iPhone (Safari → Compartir → Añadir a inicio), passkey creada, sesión abierta
 - [ ] Dirección del teléfono tiene **HSK para gas** (faucet el sábado, 0.01 HSK/día) y **demoUSDT** (`faucet()`)
-- [ ] Agente registrado en `IdentityRegistry`, `linkHuman` hecho, visa `pay:demoUSDT` con límite 100 otorgada — todo el sábado, no el domingo
+- [ ] `pap_connect` hecho el sábado: agente registrado en `IdentityRegistry` desde el teléfono (teléfono = owner) y `grant(transfer:demoUSDT, límite 100)` — nada de esto el domingo
 - [ ] Relay desplegado en Vercel y respondiendo (`curl https://pap.devcristobalvc.com/api/health`)
-- [ ] MCP `pap` registrado en Claude Code (`claude mcp list` → `pap … Connected`)
+- [ ] MCP `pap` cargado desde `.mcp.json` en la raíz del repo (`claude mcp list` → `pap … Connected`), `PAP_RELAY_URL` apuntando a producción, `~/.pap/agent.json` presente
 - [ ] Explorer abierto en la dirección del contrato `AgentPassport` (pestaña lista, ya cargada)
 - [ ] Video plan B descargado **localmente** (no depender de YouTube/wifi), abierto en un reproductor en pausa
 - [ ] Hotspot del celular listo como respaldo de internet del laptop
@@ -45,16 +45,16 @@ Juan escribe en Claude Code:
 Paga 5 demoUSDT al oráculo 0x<ORACLE_ADDR> por la consulta de precio.
 ```
 
-Claude decide llamar `pap_request_payment`. Narrar: *"El agente no puede pagar. Lo único que puede hacer es pedir permiso."*
+Claude decide llamar `pap_transfer`. Narrar: *"El agente no puede pagar. Lo único que puede hacer es pedir permiso."*
 
 ### 3. QR en terminal (5 s)
-Aparece el QR ASCII + link. Narrar: *"Esto va a mi teléfono."*
+Aparece el QR ASCII + link `/show/:id` (abrirlo en el laptop si el QR de la terminal se ve mal en el proyector). Narrar: *"Esto va a mi teléfono."*
 
 ### 4. Aprobación en iPhone (20 s)
-Escanear el QR con la cámara → abre la PWA → pantalla "Approve":
+Escanear el QR con la cámara → abre la PWA en `/approve/:id`:
 
 > **Claude Code** quiere enviar **5 demoUSDT** a `0x…abcd`
-> Visa: `pay:demoUSDT` · límite 100 · usado 0
+> Visa: `transfer:demoUSDT` · límite 100 · usado 0
 > [ Aprobar ] [ Rechazar ]
 
 Narrar: *"Veo exactamente qué quiere hacer, en lenguaje humano, y el límite que yo le puse."*
@@ -67,7 +67,7 @@ Clic en el link → pestaña del explorer con la tx confirmada (HashKey testnet 
 Narrar: *"Humano en el loop, 15 segundos, desde el celular. El agente nunca tocó una llave."*
 
 ### 6. Lo que quedó on-chain (15 s)
-Cambiar a la pestaña del contrato `AgentPassport` en el explorer → eventos `HumanLinked` y `VisaGranted`.
+Cambiar a la pestaña del contrato `AgentPassport` en el explorer → eventos `PermissionGranted` y `ActionRecorded` (y en `IdentityRegistry` el `Registered` con owner = teléfono).
 Narrar: *"Cualquier servicio puede verificar que este agente está autorizado por un humano real, con alcance y límite, sin saber quién es el humano. Compliant but private."*
 
 → Volver al guion del pitch (roadmap y cierre).
@@ -96,10 +96,12 @@ Decir: *"Les muestro la grabación de esta mañana mientras la red se pone de ac
 
 | Síntoma | Causa probable | Fix rápido |
 |---|---|---|
-| Claude no llama `pap_request_payment` | MCP no conectado | `claude mcp list`; reiniciar Claude Code; prompt más explícito: "usa la tool pap_request_payment" |
+| Claude no llama `pap_transfer` | MCP no conectado / `.mcp.json` no cargado | `claude mcp list`; reiniciar Claude Code desde la raíz del repo; prompt más explícito: "usa la tool pap_transfer" |
+| `pap_transfer` dice que no hay agente | `~/.pap/agent.json` ausente | Correr `pap_connect` (ya debería estar hecho el sábado) |
 | QR abre pero PWA dice "request not found" | Relay reiniciado (in-memory) o URL distinta | Repetir el paso 2; verificar `PAP_RELAY_URL` en el MCP |
+| Teléfono firma pero tx revierte | `canAct` false (límite agotado / grant expirado) | `revoke` + `grant` de nuevo desde el teléfono; verificar `getGrant` en el explorer |
 | "insufficient funds" en el teléfono | Sin HSK para gas | Faucet ya no da más ese día → usar la dirección de respaldo (fondearla el sábado) |
-| Tx enviada pero Claude sigue esperando | Poll timeout / relay no recibió `result` | Mostrar el hash desde el teléfono en el explorer; explicar que el agente reintenta |
+| Tx enviada pero Claude sigue esperando | Poll (hasta 5 min) / relay no recibió `resolve` | Mostrar el hash desde el teléfono en el explorer; explicar que el agente reintenta |
 | Wifi de ICESI caído | — | Hotspot del celular al laptop; el teléfono ya va por datos |
 
 ---

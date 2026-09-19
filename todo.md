@@ -1,7 +1,12 @@
 # Passport Agent Protocol (PAP) — Hackathon Plan
 
 Ethereum Builders Tour Cali · 2026-09-19/20 · HashKey Chain testnet (chainId 133)
-**Submission deadline: Sun Sep 20, 13:30** (Devfolio: eag-global-buildathon.devfolio.co) · Demo 13:30–17:00 (3 min + 2 Q&A)
+
+> ## ⏰ DEADLINE: **DOMINGO 20 SEP, 13:30** ⏰
+> Entrega en el Devfolio **global**: https://eag-global-buildathon.devfolio.co (confirmado en ethcali.org/builders-tour — no hay Devfolio de Cali).
+> Demo showcase 13:30–17:00 (3 min demo + 2 min Q&A) · Jurado 17:00 · Premios 17:30.
+> Premios: EAG 5×200 USDT + beca ShanHaiWoo · EF tickets Devcon VIII · HashKey 500/300/200 USDT.
+> Tracks: EAG *AI x Ethereum & Agent Economy* · HSK *AI Agents* / *Payments*.
 
 Stack: Foundry (Solidity) · Next.js + TypeScript (PWA + relay, Vercel) · viem · WebAuthn/passkeys · MCP SDK · zkpjwt-core (phase 3)
 
@@ -20,9 +25,9 @@ Split: **juan** = `web/` + `mcp/` · **william** = `contracts/` + HSK deploy · 
 
 ### T1 — ERC-8004 minimal registries (Solidity)
 - **status:** done
-- **description:** `IdentityRegistry` (ERC-721, `register(agentURI[, agentWallet])`, `getAgentWallet`, `agentIdOf`), `ReputationRegistry` (`giveFeedback`, `getSummary`).
+- **description:** `IdentityRegistry` (ERC-721, `register(string agentURI, address agentWallet) -> agentId`, `getAgentWallet`, `agentIdOf(agentWallet)`), `ReputationRegistry` (`giveFeedback`, `getSummary`).
 - **acceptance:** agent registers, gets `agentId`; wallet <-> agentId resolvable both ways. Foundry tests pass.
-- **comments:** this is the "passport" itself. `agentWallet` = the agent's public address (no key on the agent side — the phone signs *for* it, see T6).
+- **comments:** this is the "passport" itself **and the human->agent link**: `msg.sender` of `register` is the human (owner of the NFT), `agentWallet` is the agent's public address (no key on the agent side — the phone signs *for* it, see T6). No separate "linkHuman".
 
 ### T2 — Groth16 verifier + PassportRegistry (Solidity)
 - **status:** done (parked for Iter 3)
@@ -35,35 +40,35 @@ Split: **juan** = `web/` + `mcp/` · **william** = `contracts/` + HSK deploy · 
 
 ### T3 — `AgentPassport` contract (william)
 - **status:** todo
-- **description:** `AgentPassport.sol`: `linkHuman(agentId, humanSigner)` (owner of the ERC-721 sets the phone address as authorized signer), `grantVisa(agentId, scope, limit, expiry)`, `revokeVisa(agentId, scope)`, `hasVisa(agentId, scope, amount) -> bool`, events `HumanLinked`, `VisaGranted`, `VisaRevoked`, `VisaUsed`. Scopes as `bytes32` (e.g. `keccak("pay:demoUSDT")`).
-- **acceptance:** only the linked human can grant/revoke; `hasVisa` false after expiry / over limit; Foundry tests.
-- **tests:** grant -> hasVisa true; revoke -> false; over-limit -> false; non-human caller reverts.
-- **comments:** keep it tiny. The demo needs `linkHuman` + `grantVisa` + `hasVisa`.
+- **description:** `AgentPassport.sol`: `grant(agentId, bytes32 scope, uint256 limit, uint64 expiry)` onlyOwner (NFT owner) -> `PermissionGranted`; `revoke(agentId, scope)` -> `PermissionRevoked`; `record(agentId, scope, amount, bytes32 ref)` (owner or agentWallet) -> `ActionRecorded`; `canAct(agentId, scope, amount) view`; `getGrant(agentId, scope) view`. Scope = `keccak256("transfer:demoUSDT")`. In docs we call a grant a *visa* (metaphor only).
+- **acceptance:** only the NFT owner can grant/revoke; `canAct` false after expiry / over limit (limit minus recorded usage); Foundry tests.
+- **tests:** grant -> canAct true; revoke -> false; record up to limit -> next canAct false; expired -> false; non-owner grant reverts; record from random address reverts.
+- **comments:** keep it tiny. The demo needs `grant` + `record` + `canAct`.
 
 ### T4 — `DemoUSDT` + deploy to HashKey testnet (william)
 - **status:** todo
 - **description:** `DemoUSDT.sol` (exists, 6 decimals, public `faucet()`). `Deploy.s.sol` deploys IdentityRegistry, ReputationRegistry, AgentPassport, DemoUSDT (PassportRegistry optional). Write `deployments/hashkey-testnet.json` + explorer links in README.
-- **acceptance:** all addresses live on explorer; `cast call hasVisa` works; faucet gives demoUSDT to the phone address.
+- **acceptance:** all addresses live on explorer; `cast call canAct` works; faucet gives demoUSDT to the phone address.
 - **comments:** get HSK from faucet **early** (0.01 HSK/day). Fund phone address + a spare.
 
 ### T5 — Relay API (juan, `web/app/api/*`)
 - **status:** todo
-- **description:** `POST /api/requests` (agent creates request: `{agentId, kind:"pay"|"permission", to, amount, scope, memo}` -> `{id, qrUrl, deepLink}`), `GET /api/requests/:id` (status: `pending|approved|rejected|sent`, `txHash`), `POST /api/requests/:id/result` (phone posts signed tx / hash). Storage: in-memory or Vercel KV. No keys server-side.
-- **acceptance:** curl flow create -> poll -> phone posts result -> poll returns `sent` + hash.
+- **description:** Pairing: `POST /api/pair {agentAddress, agentName, sig}` -> `{pairId, url}`; `GET /api/pair/:id` -> `{status: pending|approved, ownerAddress?, agentId?, txHash?}`; `POST /api/pair/:id/approve`. Actions: `POST /api/requests {agentAddress, action:{type:"transfer", token, to, amount, memo}, sig}` -> `{requestId, url}`; `GET /api/requests/:id` -> `{status: pending|approved|rejected|expired, txHash?}`; `POST /api/requests/:id/resolve`. Pages: `/pair/:id`, `/approve/:id` (iPhone), `/show/:id` (big QR on laptop). Storage: in-memory or Vercel KV. No keys server-side.
+- **acceptance:** curl flow create -> poll -> phone resolves -> poll returns `approved` + `txHash`.
 - **tests:** route unit tests; one integration run against Vercel preview.
 - **comments:** deploy to Vercel from day 1 so the phone can reach it over the internet (ICESI wifi is not localhost). Domain `pap.devcristobalvc.com`.
 
 ### T6 — PWA on iPhone (juan, `web/app/*`)
 - **status:** todo
-- **description:** Installable PWA. Screens: (1) **Onboard** — create passkey (WebAuthn), derive/hold an EOA in the device (key wrapped by the passkey, stored in IndexedDB), show address + faucet button; (2) **Link** — register agent on IdentityRegistry from the phone (phone = owner), `linkHuman`, `grantVisa(pay:demoUSDT, limit 100)`; (3) **Approve** — opens from QR/deep link, shows request in plain language ("Claude Code wants to send 5 demoUSDT to 0x..."), FaceID -> sign + `eth_sendRawTransaction` to HSK -> POST result to relay.
+- **description:** Installable PWA. Screens: (1) **Onboard** — create passkey (WebAuthn), derive/hold an EOA in the device (key wrapped by the passkey, stored in IndexedDB), show address + faucet button; (2) **`/pair/:id`** — phone registers the agent on `IdentityRegistry` (`register(agentURI, agentAddress)`, phone = NFT owner = human link) and `grant(agentId, transfer:demoUSDT, limit 100, expiry)`, then `POST /api/pair/:id/approve`; (3) **`/approve/:id`** — opens from QR, shows request in plain language ("Claude Code wants to send 5 demoUSDT to 0x..."), FaceID -> sign `transfer` + `record` -> `eth_sendRawTransaction` to HSK -> `POST /api/requests/:id/resolve`.
 - **acceptance:** end-to-end on a real iPhone over Safari: scan -> FaceID -> tx on explorer -> agent gets hash, in < 30 s.
 - **tests:** manual on device (Safari PWA). Playwright optional.
 - **comments:** passkey protects the key **in the device**; it does not sign on-chain itself (see PITCH.md Q&A). Keep UI: one big green "Approve" and one red "Reject".
 
 ### T7 — MCP server (juan, `mcp/`)
 - **status:** todo
-- **description:** Node MCP server (stdio). Tools: `pap_request_payment({to, amount, memo})`, `pap_request_permission({scope, limit})`, `pap_status({id})`. Each creates a relay request, prints QR (ASCII) + link in the tool result, then polls until `sent`/`rejected` (timeout 120 s) and returns `{txHash, explorerUrl}`. Config via env: `PAP_RELAY_URL`, `PAP_AGENT_ID`.
-- **acceptance:** `claude mcp add pap -- node mcp/dist/index.js` -> in Claude Code "pay 5 demoUSDT to 0x..." -> QR appears -> approve on phone -> Claude prints the explorer link.
+- **description:** Node MCP server (stdio). Tools: `pap_connect()` (onboarding: creates pair, prints QR + `/show/:id` link, waits for approval), `pap_transfer({to, amount, memo})` (creates request, prints QR, waits up to 5 min, returns `{txHash, explorerUrl}`), `pap_status()`. Config: `.mcp.json` at repo root (`command: node mcp/dist/index.js`, Claude Code loads it automatically); env `PAP_RELAY_URL`. Agent identity (address, name, agentId) in `~/.pap/agent.json`, not in env.
+- **acceptance:** open Claude Code in the repo -> "connect to PAP" -> QR -> pair on phone; then "pay 5 demoUSDT to 0x..." -> QR -> approve on phone -> Claude prints the explorer link.
 - **tests:** vitest for request/poll logic with mocked relay.
 - **comments:** this is the "wow" moment of the demo. Make the QR big in the terminal.
 
@@ -79,8 +84,8 @@ Split: **juan** = `web/` + `mcp/` · **william** = `contracts/` + HSK deploy · 
 
 ### T9 — Gate API (`web/app/api/oracle`)
 - **status:** todo
-- **description:** `GET /api/oracle` -> `402` `{accepts:[{scheme:"pap-visa", scope, agentPassport, chainId:133}]}`. Retry with `X-PAP-AGENT: agentId` + `X-PAP-SIG: sig over challenge` -> server checks `hasVisa(agentId, scope)` via viem read + signature recovers to `getAgentWallet(agentId)` **or** the linked human -> `200` + payload. Optional `X-PAYMENT: txHash` of a demoUSDT transfer.
-- **acceptance:** curl 402 -> 200 with a visa; 403 without / after revoke.
+- **description:** `GET /api/oracle` -> `402` `{accepts:[{scheme:"pap-grant", scope, agentPassport, chainId:133}]}`. Retry with `X-PAP-AGENT: agentId` + `X-PAP-SIG: sig over challenge` -> server checks `canAct(agentId, scope, amount)` via viem read + signature recovers to `getAgentWallet(agentId)` -> `200` + payload, and `record`s the usage. Optional `X-PAYMENT: txHash` of a demoUSDT transfer.
+- **acceptance:** curl 402 -> 200 with a grant; 403 without / after `revoke`.
 - **comments:** mimic x402 header shape so judges recognize it; no external facilitator (none support HSK).
 
 ### T10 — MCP tool `pap_call_gated_api`
@@ -102,7 +107,7 @@ Split: **juan** = `web/` + `mcp/` · **william** = `contracts/` + HSK deploy · 
 
 | When | juan | william | cristóbal |
 |---|---|---|---|
-| Sat 14–17 | T5 relay on Vercel + PWA onboard | T3 AgentPassport + tests | README/todo/pitch/demo (done), Devfolio apply |
+| Sat 14–17 | T5 relay on Vercel + PWA onboard + pair | T3 AgentPassport + tests | README/todo/pitch/demo (done), Devfolio apply |
 | Sat 17–21 | T6 approve screen + signer on iPhone | T4 deploy HSK, faucet, addresses | addresses -> README, video script |
 | Sat 21–00 | T7 MCP server | help T6 (viem tx build) | dry-run demo, record plan-B video |
 | Sun 08–11 | e2e polish, error states | T9 gate if time | Devfolio project submission |
