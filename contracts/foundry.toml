@@ -14,3 +14,6 @@ remappings = [
 
 [rpc_endpoints]
 hashkey_testnet = "https://testnet.hsk.xyz"
+
+[etherscan]
+hashkey_testnet = { key = "", url = "https://testnet-explorer.hskchain.net/api", chain = 133 }

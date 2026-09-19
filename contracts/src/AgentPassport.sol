@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IdentityRegistry} from "./IdentityRegistry.sol";
 
 /// @title AgentPassport — on-chain trail of "the human authorised X for agent Y"
@@ -9,6 +11,8 @@ import {IdentityRegistry} from "./IdentityRegistry.sol";
 ///         agent was allowed to do and what it actually did. Actual value transfer happens
 ///         elsewhere (the human's wallet signs); this contract is the accountability layer.
 contract AgentPassport {
+    using SafeERC20 for IERC20;
+
     struct Grant {
         uint256 limit; // max cumulative amount for this scope (0 = no cap)
         uint256 spent;
@@ -27,6 +31,9 @@ contract AgentPassport {
     event PermissionRevoked(uint256 indexed agentId, bytes32 indexed scope, address indexed revokedBy);
     event ActionRecorded(
         uint256 indexed agentId, bytes32 indexed scope, uint256 amount, bytes32 indexed ref, address recordedBy
+    );
+    event Paid(
+        uint256 indexed agentId, address indexed token, address indexed to, uint256 amount, bytes32 ref, address by
     );
 
     error NotAgentOwner();
@@ -55,10 +62,28 @@ contract AgentPassport {
         emit PermissionRevoked(agentId, scope, msg.sender);
     }
 
+    /// @notice Scope used by `pay` for a given ERC-20 token.
+    function transferScope(address token) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked("transfer:", token));
+    }
+
     /// @notice Record an authorised action. Callable by the human (owner) or the agent wallet.
     /// @param ref  Reference to the underlying action (e.g. tx hash, request id).
     function record(uint256 agentId, bytes32 scope, uint256 amount, bytes32 ref) external {
-        address owner = identity.ownerOf(agentId);
+        _consume(agentId, scope, amount, ref);
+    }
+
+    /// @notice Pay `amount` of `token` from the human's wallet to `to`, within the agent's visa.
+    ///         The human approves this contract once at onboarding; afterwards the agent wallet
+    ///         can pay autonomously and the limit / expiry are enforced on-chain.
+    function pay(uint256 agentId, address token, address to, uint256 amount, bytes32 ref) external {
+        address owner = _consume(agentId, transferScope(token), amount, ref);
+        IERC20(token).safeTransferFrom(owner, to, amount);
+        emit Paid(agentId, token, to, amount, ref, msg.sender);
+    }
+
+    function _consume(uint256 agentId, bytes32 scope, uint256 amount, bytes32 ref) private returns (address owner) {
+        owner = identity.ownerOf(agentId);
         if (msg.sender != owner && msg.sender != identity.getAgentWallet(agentId)) revert NotAuthorised();
 
         Grant storage g = _grants[agentId][scope];
