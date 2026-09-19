@@ -66,14 +66,14 @@ Split: **juan** = `web/` + `mcp/` · **william** = `contracts/` + HSK deploy · 
 - **comments:** passkey protects the key **in the device**; it does not sign on-chain itself (see PITCH.md Q&A). Keep UI: one big green "Approve" and one red "Reject".
 
 ### T7 — MCP server (juan, `mcp/`)
-- **status:** done — `.mcp.json` committed, `mcp/dist` committed, E2E script `mcp/scripts/e2e.mjs`
+- **status:** done — standalone bundle `mcp/dist/pap.mjs` (esbuild, committed, zero install), `.mcp.json` → `node mcp/dist/pap.mjs`, E2E `mcp/scripts/e2e.mjs` (pair → pay ok → LimitExceeded → gate ACCESS GRANTED) passes with the bundle
 - **description:** Node MCP server (stdio). Tools: `pap_status()`, `pap_connect({name?})` (onboarding: creates pair, prints QR, opens `/show/pair/:id` in the browser, waits), `pap_transfer({to, amount, memo?})` (`to` = 0x or contact name; prints QR, waits up to 5 min, returns `{txHash, explorerUrl}`), `pap_wait({kind, id})`, `pap_contact_add({name, address})`. Config: `.mcp.json` at repo root (`node mcp/dist/index.js`, env `PAP_RELAY_URL=https://pap.devcristobalvc.com`). Agent identity in `~/.pap/agent.json`, not in env.
 - **acceptance:** open Claude Code in the repo -> "connect to PAP" -> QR -> pair on phone; then "pay 5 demoUSDT to 0x..." -> QR -> approve on phone -> Claude prints the explorer link.
 - **tests:** vitest for request/poll logic with mocked relay.
 - **comments:** this is the "wow" moment of the demo. Make the QR big in the terminal.
 
 ### T8 — Docs, pitch, demo, submission (cristóbal)
-- **status:** in progress — docs updated with live addresses/tx; **pending: Devfolio apply + project submission, plan-B video**
+- **status:** in progress — README trimmed for judges (docs/ARCHITECTURE.md holds the reference), SUBMISSION.md + VIDEO.md written, landing live at /; **pending: Devfolio apply + project submission (needs Cristóbal), plan-B video**
 - **description:** README (done), `docs/PITCH.md` (done), `docs/DEMO.md` (done), record 3-min video (plan B), Devfolio project submission with tracks EAG *AI x Ethereum & Agent Economy* + HSK *AI Agents / Payments*.
 - **acceptance:** submission live on Devfolio before Sun 13:30; video uploaded; README addresses filled.
 - **comments:** apply to the buildathon first (profile is 100%), then create the project.
@@ -88,9 +88,9 @@ Split: **juan** = `web/` + `mcp/` · **william** = `contracts/` + HSK deploy · 
 - **acceptance:** curl 402 -> 200 with a grant; 403 without / after `revoke`.
 - **comments:** mimic x402 header shape so judges recognize it; no external facilitator (none support HSK).
 
-### T10 — MCP tool `pap_call_gated_api`
-- **status:** todo
-- **description:** agent hits the gate, on 402 asks the phone (via relay) for a one-shot signature/permission, retries, returns the payload.
+### T10 — MCP tool `pap_call_gate`
+- **status:** done
+- **description:** `pap_call_gate({url?})`: 402 → signs the challenge with the agent identity key → 200 with data. No human in the loop — the visa on-chain is the credential.
 
 ---
 

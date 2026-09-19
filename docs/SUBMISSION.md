@@ -52,11 +52,11 @@ For HashKey Chain this is "compliant but private": any service can verify with o
 HOW IT WAS BUILT (Sep 19–20, Cali)
 - contracts/ — Foundry, Solidity 0.8.28. IdentityRegistry + ReputationRegistry (ERC-8004 interface-compatible), AgentPassport (grant / revoke / pay / record / canAct / getGrant), DemoUSDT, plus Groth16Verifier + PassportRegistry for the ZK iteration. 25 unit tests + 3 fork tests against the live HSK testnet deployment. All 6 contracts verified on Blockscout.
 - web/ — Next.js 16 on Vercel: the phone PWA (passkey wallet, /pair, /approve, /wallet), the relay API (/api/pair, /api/requests — state on Vercel Blob, no database, no keys server-side), a gas sponsor (/api/fund), and the ERC-8004 registration file per agent (/api/agents/:addr/card).
-- mcp/ — a Model Context Protocol server registered via .mcp.json: pap_connect, pap_transfer, pap_wait, pap_status, pap_contact_add. Open the repo in Claude Code and the agent has a "ask permission" tool. Agent identity lives in ~/.pap/agent.json — no private key anywhere on the agent side.
+- mcp/ — a Model Context Protocol server shipped as a standalone bundle (mcp/dist/pap.mjs, zero install): pap_connect, pap_transfer, pap_call_gate, pap_wait, pap_status, pap_contact_add. git clone → open Claude Code in the folder → approve the "pap" server from .mcp.json → the agent has an "ask permission" tool. Agent identity lives in ~/.pap/agent.json — no private key anywhere on the agent side. Works with any MCP client (Cursor, Claude Desktop).
 - Phone simulator (web/scripts/phone-sim.mjs) and E2E script (mcp/scripts/e2e.mjs) for CI-style runs without a device.
 
 THE GATE (iteration 2, live)
-GET /api/gate/oracle is an x402-shaped border: the first request gets a 402 with a challenge; the agent signs it with its identity key and retries; the gate verifies the signature, checks on-chain that the key is the agent's wallet in IdentityRegistry and that canAct() is true on AgentPassport, and answers 200. Any service can put a "visa required" border in front of an endpoint with ~100 lines and no facilitator.
+GET /api/gate/oracle is an x402-shaped border: the first request gets a 402 with a challenge; the agent signs it with its identity key and retries; the gate verifies the signature, checks on-chain that the key is the agent's wallet in IdentityRegistry and that canAct() is true on AgentPassport, and answers 200. The agent does it alone with the pap_call_gate tool — no human involved, because the visa is active on-chain. Any service can put a "visa required" border in front of an endpoint with ~100 lines and no facilitator. Full E2E (pair → pay ok → LimitExceeded → gate ACCESS GRANTED) passes with the bundle.
 
 WHAT'S NEXT
 - Iteration 3 — ZK passport: prove "I am an authorized agent" with a Groth16 membership proof (zkpjwt-core, our own npm lib) without revealing which one. Verifier and registry already deployed; research in docs/STATE_OF_THE_ART.md.
@@ -86,6 +86,7 @@ Solidity, Foundry, ERC-8004, HashKey Chain, Next.js, TypeScript, viem, WebAuthn,
 | Human-approved payment tx | https://testnet-explorer.hskchain.net/tx/0xe15228455c80cd4c6e9a2229ab774e5d36ebd9e1ce63cf19cdefcfaec7b04e23 |
 | Agent-alone payment tx | https://testnet-explorer.hskchain.net/tx/0x629de0c7927fe7a44796698f1bb8c56d6a6d0f67d3ea1cda19541bc8c15c756f |
 | Demo video | **[OK CRISTÓBAL]** YouTube unlisted link — see `docs/VIDEO.md` |
+| Architecture / API reference | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/ARCHITECTURE.md |
 | Pitch | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/PITCH.md |
 | Gate (x402-shaped) | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/GATE.md |
 

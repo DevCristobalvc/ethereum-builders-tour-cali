@@ -23,6 +23,7 @@ Si no hay forma de espejar el iPhone: apuntar la cámara del laptop al teléfono
 - [ ] Relay desplegado en Vercel y respondiendo (`curl https://pap.devcristobalvc.com/api/health`)
 - [ ] MCP `pap` cargado desde `.mcp.json` en la raíz del repo (`claude mcp list` → `pap … Connected`), `~/.pap/agent.json` presente
 - [ ] Contacto `oracle` agregado (`pap_contact_add`) para poder decir "paga 5 demoUSDT a oracle"
+- [ ] `pap_call_gate` probado una vez contra producción (remate B)
 - [ ] Explorer abierto en `AgentPassport` `0xCE112FD67B0E19a2eeD894dDD3a5B445989A6e7B` (pestaña lista, ya cargada)
 - [ ] Simulador de teléfono listo en otra terminal (`node web/scripts/phone-sim.mjs`) — plan B si el iPhone falla en vivo
 - [ ] Video plan B descargado **localmente** (no depender de YouTube/wifi), abierto en un reproductor en pausa
@@ -72,7 +73,9 @@ Narrar: *"Humano en el loop, 15 segundos, desde el celular. El agente nunca toc�
 ### 6. Lo que quedó on-chain (15 s)
 Cambiar a la pestaña del contrato `AgentPassport` en el explorer → eventos `PermissionGranted` y `Paid` (y en `IdentityRegistry` el `Registered` con owner = teléfono).
 
-**Remate opcional (10 s, si hay tiempo):** pedirle a Claude *"ahora paga 500 demoUSDT a oracle"* → aprobar en el teléfono → la tx **revierte** con `LimitExceeded()`. Narrar: *"El límite no es una regla del servidor, es del contrato."* (Ya probado: funciona.)
+**Remate opcional A (10 s):** pedirle a Claude *"ahora paga 500 demoUSDT a oracle"* → aprobar en el teléfono → la tx **revierte** con `LimitExceeded()`. Narrar: *"El límite no es una regla del servidor, es del contrato."* (Ya probado: funciona.)
+
+**Remate opcional B (10 s, iteración 2):** *"llama al oráculo protegido"* → `pap_call_gate` → en la terminal se ve `402` → challenge firmado → `200 ACCESS GRANTED`, **sin tocar el teléfono**. Narrar: *"Y cuando la visa ya existe, el agente pasa fronteras solo: 402, firma, 200. Estilo x402, sin facilitador."*
 Narrar: *"Cualquier servicio puede verificar que este agente está autorizado por un humano real, con alcance y límite, sin saber quién es el humano. Compliant but private."*
 
 → Volver al guion del pitch (roadmap y cierre).
