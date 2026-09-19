@@ -64,7 +64,7 @@ function Approve({ id, w }: { id: string; w: StoredWallet }) {
           <Status s={req.status} />
         </div>
         <p className="mt-1 text-sm text-muted">wants to</p>
-        <p className="my-2 text-2xl font-semibold">
+        <p className="my-2 text-3xl font-semibold tracking-tight">
           Send {req.action.amount} {TOKEN_SYMBOL}
         </p>
         <Row k="To" v={<AddrLink addr={req.action.to} />} />

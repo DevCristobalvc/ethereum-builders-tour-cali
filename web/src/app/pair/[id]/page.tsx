@@ -1,7 +1,7 @@
 "use client";
 import { use, useEffect, useState } from "react";
 import { WalletGate } from "@/components/WalletGate";
-import { AddrLink, Button, Card, Notice, Row, Shell, Status, TxLink } from "@/components/ui";
+import { AddrLink, Button, Card, Label, Notice, Row, Shell, Status, TxLink, inputCls } from "@/components/ui";
 import { ADDRESSES, TOKEN_SYMBOL } from "@/lib/chain";
 import { onboardAgent, type Step } from "@/lib/onchain";
 import { api, signRelay } from "@/lib/relay";
@@ -85,18 +85,18 @@ function Pair({ id, w }: { id: string; w: StoredWallet }) {
             enforced on-chain.
           </p>
           <label className="text-sm">
-            <span className="text-muted">Max total {TOKEN_SYMBOL}</span>
+            <Label>Max total {TOKEN_SYMBOL}</Label>
             <input
-              className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 font-mono"
+              className={inputCls}
               inputMode="decimal"
               value={limit}
               onChange={(e) => setLimit(e.target.value)}
             />
           </label>
           <label className="text-sm">
-            <span className="text-muted">Valid for (days)</span>
+            <Label>Valid for (days)</Label>
             <input
-              className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 font-mono"
+              className={inputCls}
               inputMode="numeric"
               value={days}
               onChange={(e) => setDays(e.target.value)}

@@ -31,7 +31,7 @@ export function WalletGate({ children }: { children: (w: StoredWallet) => ReactN
 
   return (
     <Card className="flex flex-col gap-3">
-      <h2 className="text-lg font-semibold">Set up your passport wallet</h2>
+      <h2 className="text-xl font-semibold tracking-tight">Set up your passport wallet</h2>
       <p className="text-sm text-muted">
         A wallet is created on this phone and locked behind a passkey (Face ID). Your AI agent never sees it — it
         only gets what you approve.

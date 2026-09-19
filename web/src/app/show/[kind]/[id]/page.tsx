@@ -2,7 +2,7 @@
 /** Big QR for the laptop screen. Polls the relay and flips to a success state when the phone resolves it. */
 import QRCode from "qrcode";
 import { use, useEffect, useState } from "react";
-import { Status, TxLink } from "@/components/ui";
+import { Logo, Status, TxLink } from "@/components/ui";
 import { TOKEN_SYMBOL } from "@/lib/chain";
 import type { PairState, RequestState } from "@/lib/types";
 
@@ -14,7 +14,7 @@ export default function ShowPage({ params }: { params: Promise<{ kind: string; i
   const [state, setState] = useState<PairState | RequestState>();
 
   useEffect(() => {
-    QRCode.toString(target, { type: "svg", margin: 1, color: { dark: "#0b1220", light: "#ffffff" } }).then(setSvg);
+    QRCode.toString(target, { type: "svg", margin: 1, color: { dark: "#18182c", light: "#ffffff" } }).then(setSvg);
   }, [target]);
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export default function ShowPage({ params }: { params: Promise<{ kind: string; i
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-8 text-center">
       <div className="flex items-center gap-3">
-        <span className="inline-block h-8 w-8 rounded-lg border-[3px] border-accent" />
+        <Logo size={32} />
         <h1 className="text-2xl font-semibold tracking-tight">Passport Agent Protocol</h1>
       </div>
 
@@ -63,7 +63,7 @@ export default function ShowPage({ params }: { params: Promise<{ kind: string; i
             )}
           </p>
           <div
-            className="w-[min(70vw,420px)] rounded-3xl bg-white p-5 shadow-[0_0_80px_-20px_var(--accent)]"
+            className="w-[min(70vw,420px)] rounded-3xl border border-border bg-white p-5 shadow-[0_20px_60px_-30px_rgba(0,153,255,0.5)]"
             dangerouslySetInnerHTML={{ __html: svg }}
           />
           <p className="font-mono text-sm text-muted">{target}</p>

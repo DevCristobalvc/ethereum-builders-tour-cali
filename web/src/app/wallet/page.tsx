@@ -12,10 +12,10 @@ import { clearWallet, type StoredWallet } from "@/lib/wallet";
 
 export default function Home() {
   return (
-    <Shell>
+    <Shell title="Wallet">
       <WalletGate>{(w) => <Dashboard w={w} />}</WalletGate>
       <p className="text-center text-xs text-muted">
-        Built at Ethereum Builders Tour Cali · HSK Chain testnet
+        Ethereum Builders Tour Cali · HSK Chain testnet
       </p>
     </Shell>
   );
@@ -52,7 +52,7 @@ function Dashboard({ w }: { w: StoredWallet }) {
       <Card>
         <div className="flex items-center justify-between">
           <h2 className="font-semibold">Your wallet</h2>
-          <span className="rounded-full border border-ok px-2 py-0.5 text-[10px] uppercase text-ok">
+          <span className="rounded-full bg-ok/10 px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-ok">
             {w.prf ? "passkey · encrypted" : "passkey"}
           </span>
         </div>
@@ -67,7 +67,7 @@ function Dashboard({ w }: { w: StoredWallet }) {
         {pending.length === 0 && <p className="text-sm text-muted mt-1">Nothing waiting. Ask your agent to do something.</p>}
         <div className="mt-2 flex flex-col gap-2">
           {pending.map((r) => (
-            <Link key={r.id} href={`/approve/${r.id}`} className="rounded-xl border border-accent/50 p-3">
+            <Link key={r.id} href={`/approve/${r.id}`} className="rounded-2xl border border-accent/40 bg-accent/5 p-4">
               <div className="flex justify-between text-sm">
                 <span className="font-semibold">{r.agentName}</span>
                 <Status s={r.status} />
