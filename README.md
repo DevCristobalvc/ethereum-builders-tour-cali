@@ -43,6 +43,8 @@ Then, in Claude Code:
 2. *"pay 5 demoUSDT to 0x… for the oracle call"* → QR → Face ID → 1 tx → the agent gets the tx hash.
 3. *"call the gated oracle"* → `pap_call_gate` → 402 → signed challenge → 200.
 
+On the phone, `/wallet` shows **Your agents** (each linked agent with its on-chain visa: spent / limit bar and expiry) and **Passport stamps** (the real `Paid` events read from HSK — amount, recipient, tx, and whether *you* or the *agent* executed it).
+
 The MCP server is a standalone bundle (`mcp/dist/pap.mjs`, committed). The agent's identity lives in `~/.pap/agent.json` — **no private key anywhere on the agent side**. Other MCP clients: `command: node`, `args: ["<repo>/mcp/dist/pap.mjs"]`, `env: PAP_RELAY_URL=https://pap.devcristobalvc.com`.
 
 No phone? `node web/scripts/phone-sim.mjs` approves for you; `node mcp/scripts/e2e.mjs` runs the whole flow (pair → pay → `LimitExceeded` → gate).

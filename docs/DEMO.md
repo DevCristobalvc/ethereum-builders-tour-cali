@@ -24,6 +24,7 @@ Si no hay forma de espejar el iPhone: apuntar la cámara del laptop al teléfono
 - [ ] MCP `pap` cargado desde `.mcp.json` en la raíz del repo (`claude mcp list` → `pap … Connected`), `~/.pap/agent.json` presente
 - [ ] Contacto `oracle` agregado (`pap_contact_add`) para poder decir "paga 5 demoUSDT a oracle"
 - [ ] `pap_call_gate` probado una vez contra producción (remate B)
+- [ ] `/wallet` en el iPhone muestra el agente en **Your agents** con la barra de la visa y al menos un sello en **Passport stamps** (los sellos se leen de HSK, tardan unos segundos en aparecer tras la tx)
 - [ ] Explorer abierto en `AgentPassport` `0xCE112FD67B0E19a2eeD894dDD3a5B445989A6e7B` (pestaña lista, ya cargada)
 - [ ] Simulador de teléfono listo en otra terminal (`node web/scripts/phone-sim.mjs`) — plan B si el iPhone falla en vivo
 - [ ] Video plan B descargado **localmente** (no depender de YouTube/wifi), abierto en un reproductor en pausa
@@ -69,6 +70,8 @@ Volver al laptop: Claude recibió `{txHash, explorerUrl}` y sigue: *"Pago enviad
 Clic en el link → pestaña del explorer con la tx confirmada (HashKey testnet confirma en ~2 s).
 
 Narrar: *"Humano en el loop, 15 segundos, desde el celular. El agente nunca tocó una llave."*
+
+**Remate visual (5 s, recomendado):** en el iPhone, deslizar hacia abajo en `/wallet` → sección **Passport stamps**: aparece el sello nuevo (monto, destinatario, tx, ejecutado por *you*). Arriba, en **Your agents**, la barra de gasto de la visa se movió (5 / 100). Narrar: *"Y el pasaporte tiene un sello nuevo — leído directo de la cadena."*
 
 ### 6. Lo que quedó on-chain (15 s)
 Cambiar a la pestaña del contrato `AgentPassport` en el explorer → eventos `PermissionGranted` y `Paid` (y en `IdentityRegistry` el `Registered` con owner = teléfono).

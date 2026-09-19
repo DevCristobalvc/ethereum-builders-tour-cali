@@ -231,6 +231,11 @@ export default function Landing() {
             </a>
           </li>
           <li>
+            <a className="text-accent hover:underline" href={`${REPO}/blob/main/docs/ARCHITECTURE.md`} target="_blank" rel="noreferrer">
+              Architecture — components, on-chain surface, relay API, MCP tools
+            </a>
+          </li>
+          <li>
             <a className="text-accent hover:underline" href={`${REPO}/blob/main/docs/PITCH.md`} target="_blank" rel="noreferrer">
               Pitch &amp; Q&amp;A
             </a>
@@ -252,7 +257,7 @@ export default function Landing() {
           </li>
           <li>
             <Link className="text-accent hover:underline" href="/wallet">
-              Wallet — the phone side of the protocol
+              Wallet — your agents, their visas and the passport stamps (real Paid events from HSK)
             </Link>
           </li>
         </ul>
