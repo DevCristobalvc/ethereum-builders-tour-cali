@@ -9,21 +9,21 @@ Pitch: **"Prove you're a trusted agent. Don't say which one."** ERC-8004 reputat
 ---
 
 ## T0 — Repo & tooling
-- **status:** in_progress
+- **status:** done
 - **description:** GitHub repo `devcristobalvc/ethereum-builders-tour-cali`, monorepo layout (`contracts/`, `web/`, `docs/`), Foundry installed, `.gitignore`, README skeleton.
 - **acceptance:** `git push` works; `forge build` runs; `npm run dev` in `web/` boots.
 - **tests:** none (infra).
 - **comments:** gh device login pending (code 4B4A-C0E2). Chrome extension not connected → user logs in manually.
 
 ## T1 — ERC-8004 minimal registries (Solidity)
-- **status:** todo
+- **status:** done
 - **description:** `IdentityRegistry` (ERC-721, `register(agentURI)`, `getAgentWallet`), `ReputationRegistry` (`giveFeedback`, `getSummary`). Minimal but interface-compatible with EIP-8004 so the story is "real ERC-8004".
 - **acceptance:** an agent can register, get an `agentId`, receive feedback; summary readable on-chain.
 - **tests:** Foundry: register mints and emits `Registered`; feedback updates summary; only agent owner can `setAgentURI`.
 - **comments:** vendor-lite, no external deps except OpenZeppelin ERC721.
 
 ## T2 — Groth16 verifier + PassportRegistry (Solidity)
-- **status:** todo
+- **status:** done
 - **description:** `snarkjs zkey export solidityverifier merkle_final.zkey` → `Groth16Verifier.sol`. `PassportRegistry`: `setRoot(root)` (issuer only), `verifyPassport(proof, root, serviceId, nullifier)` → checks root == current root, verifier ok, nullifier unused per `serviceId`.
 - **acceptance:** valid proof passes; wrong root / replayed nullifier reverts.
 - **tests:** Foundry with a fixture proof generated off-chain (`test/fixtures/proof.json`); fuzz on bad inputs.
