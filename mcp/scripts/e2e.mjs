@@ -18,7 +18,7 @@ const client = new Client({ name: "e2e", version: "0" });
 await client.connect(
   new StdioClientTransport({
     command: "node",
-    args: ["dist/index.js"],
+    args: ["dist/pap.mjs"],
     env: { ...process.env, PAP_HOME, PAP_RELAY_URL: RELAY, PAP_WAIT_MS: "2000", PAP_NO_BROWSER: "1" },
   })
 );
