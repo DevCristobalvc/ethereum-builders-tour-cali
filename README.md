@@ -80,10 +80,10 @@ HashKey Chain Testnet · chainId `133` · RPC `https://testnet.hsk.xyz` · explo
 
 | Contract | Address |
 |---|---|
-| `AgentPassport` | [`0xCE112FD67B0E19a2eeD894dDD3a5B445989A6e7B`](https://testnet-explorer.hskchain.net/address/0xCE112FD67B0E19a2eeD894dDD3a5B445989A6e7B) |
+| `AgentPassport` | [`0xCE112FD67B0E19a2eeD894dDD3a5B445989A6e7B`](https://testnet-explorer.hskchain.net/address/0xCE112FD67B0E19a2eeD894dDD3a5B445989A6e7B) ✅ verified |
 | `IdentityRegistry` (ERC-8004) | [`0x9a074B1BD632D93b20BF468Cd23C0a9794F2e50F`](https://testnet-explorer.hskchain.net/address/0x9a074B1BD632D93b20BF468Cd23C0a9794F2e50F) |
 | `DemoUSDT` | [`0xdD8FB4B51aa492b9E0Ae5AD10de65B146797Cd84`](https://testnet-explorer.hskchain.net/address/0xdD8FB4B51aa492b9E0Ae5AD10de65B146797Cd84) |
-| `ReputationRegistry` | [`0xf935f364f797AF2336FfDb3ee06431e1616B7c6C`](https://testnet-explorer.hskchain.net/address/0xf935f364f797AF2336FfDb3ee06431e1616B7c6C) |
+| `ReputationRegistry` | [`0xf935f364f797AF2336FfDb3ee06431e1616B7c6C`](https://testnet-explorer.hskchain.net/address/0xf935f364f797AF2336FfDb3ee06431e1616B7c6C) ✅ verified |
 | `PassportRegistry` (phase 3) | [`0x4bB5791e89b4B2aA9D435CCB7F428626c790f10C`](https://testnet-explorer.hskchain.net/address/0x4bB5791e89b4B2aA9D435CCB7F428626c790f10C) |
 | `Groth16Verifier` (phase 3) | [`0xEBB0A2188451e702c4905168d465FCCbdf44B229`](https://testnet-explorer.hskchain.net/address/0xEBB0A2188451e702c4905168d465FCCbdf44B229) |
 
