@@ -61,6 +61,37 @@ cast call --rpc-url $R $AP 'getGrant(uint256,bytes32)(uint256,uint256,uint64,boo
 cast call --rpc-url $R $AP 'canAct(uint256,bytes32,uint256)(bool)' 6 $SCOPE 500000000   # false
 ```
 
+## Visas for any action — scope convention
+
+`AgentPassport` never interprets a scope: it is any `bytes32`. `grant` / `record` / `canAct` work
+with all of them (`record` is callable by the human **or** the agent key). `pay` is just
+`record` + `transferFrom` for the `transfer:` family. Convention (`src/Scopes.sol`, tests in `test/Scopes.t.sol`):
+
+| Scope | bytes32 | `amount` | typical `limit` |
+|---|---|---|---|
+| `transfer:<token>` | `keccak256(abi.encodePacked("transfer:", token))` | token units | e.g. `100e6` |
+| `call:<contract>:<selector>` | `keccak256(abi.encodePacked("call:", target, selector))` | `1` per call | `N` or `type(uint256).max` |
+| `sign:<domain>` | `keccak256(abi.encodePacked("sign:", domain))` | `1` per signature | `N` |
+| `secret:<name>` | `keccak256(abi.encodePacked("secret:", name))` | `1` per read | `1` (single use) |
+
+Countable actions: `limit = N` uses (or `type(uint256).max` = unlimited, still expirable), `amount = 1`.
+`limit = 0` means no cap. viem: `keccak256(concatHex([stringToHex("sign:"), stringToHex(domain)]))`.
+
+## Passport stamps — reading an agent's history
+
+`ActionRecorded(uint256 indexed agentId, bytes32 indexed scope, uint256 amount, bytes32 indexed ref, address recordedBy)`
+— `agentId`, `scope` and `ref` are indexed, so explorers / the PWA can filter by topic.
+
+```bash
+# all stamps of agent 6 (deploy block 33334362)
+cast logs --rpc-url https://testnet.hsk.xyz --from-block 33334362   --address 0xCE112FD67B0E19a2eeD894dDD3a5B445989A6e7B   'ActionRecorded(uint256 indexed agentId, bytes32 indexed scope, uint256 amount, bytes32 indexed ref, address recordedBy)' 6
+
+# or decoded:
+forge script script/ReadHistory.s.sol --sig "run(uint256)" 6 --rpc-url hashkey_testnet
+```
+
+viem (PWA): `pub.getLogs({ address: AgentPassport, event: parseAbiItem('event ActionRecorded(uint256 indexed agentId, bytes32 indexed scope, uint256 amount, bytes32 indexed ref, address recordedBy)'), args: { agentId }, fromBlock: 33334362n })`.
+
 ## Deploy
 
 ```bash
