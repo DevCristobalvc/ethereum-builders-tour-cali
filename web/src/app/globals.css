@@ -6,7 +6,7 @@
   --surface: #fdfbf7;
   --paper-deep: #ece5d8;
   --foreground: #1c1420;
-  --muted: #7d7280;
+  --muted: #655a68; /* ≥ 5:1 on every paper tone (WCAG AA) */
   --border: #e3dccf;
   --accent: #7a1f5c;
   --accent-deep: #56133f;
@@ -82,6 +82,15 @@ input::placeholder { color: var(--muted); }
 .ripple.d3 { animation-delay: 1.6s; }
 .march { stroke-dasharray: 6 6; animation: march 1.2s linear infinite; }
 .marquee { animation: marquee 28s linear infinite; }
+.marquee-rev { animation-direction: reverse; animation-duration: 34s; }
+.marquee-wrap:hover .marquee, .marquee-wrap.paused .marquee { animation-play-state: paused; }
+/* the .env line gets struck through when its block reveals */
+.strike { position: relative; }
+.strike::after {
+  content: ""; position: absolute; left: -2%; right: -2%; top: 52%; height: 3px; background: var(--bad);
+  transform: scaleX(0); transform-origin: left; transition: transform 0.8s 0.4s ease;
+}
+.reveal.in .strike::after { transform: scaleX(1); }
 .reveal { opacity: 0; transform: translateY(18px); transition: opacity 0.7s ease, transform 0.7s ease; }
 .reveal.in { opacity: 1; transform: none; }
 .rise { animation: rise 0.9s ease both; }
@@ -105,4 +114,6 @@ input::placeholder { color: var(--muted); }
 @media (prefers-reduced-motion: reduce) {
   .spark, .ripple, .march, .marquee, .rise, .rise-2, .rise-3, .stamp-in, .cursor::after { animation: none !important; }
   .reveal { opacity: 1; transform: none; transition: none; }
+  .strike::after { transform: scaleX(1); transition: none; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }

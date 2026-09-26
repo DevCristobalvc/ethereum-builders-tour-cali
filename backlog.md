@@ -44,14 +44,14 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 | PAP-18 | Plugin de Claude Code + `docs/AGENTS.md` | Skills | PAP-16, PAP-17 | done |
 | PAP-19 | Documentación: arquitectura de secretos y modelo de amenaza | Docs | PAP-07 | done |
 | PAP-20 | Investigación: políticas automáticas sin Face ID | Secretos | PAP-07 | done |
-| PAP-21 | Referencia Hermes Agent + storyboard de la landing | Landing | — | to do |
-| PAP-22 | Landing narrativa con animaciones por scroll | Landing | PAP-21 | to do |
-| PAP-23 | Diagrama animado "Cómo funciona" | Landing | PAP-21 | to do |
-| PAP-24 | Sección "Instálalo en tu agente" | Landing | PAP-18, PAP-21 | to do |
-| PAP-25 | Sección "Crea tus credenciales" | Landing | PAP-06, PAP-14, PAP-21 | to do |
-| PAP-26 | Mobile first: landing + experiencia PWA | Landing | PAP-22 | to do |
-| PAP-27 | Marquee infinito de compatibilidad | Landing | PAP-22 | to do |
-| PAP-28 | Rendimiento y accesibilidad de animaciones | Landing | PAP-22…27 | to do |
+| PAP-21 | Referencia Hermes Agent + storyboard de la landing | Landing | — | done |
+| PAP-22 | Landing narrativa con animaciones por scroll | Landing | PAP-21 | done |
+| PAP-23 | Diagrama animado "Cómo funciona" | Landing | PAP-21 | done |
+| PAP-24 | Sección "Instálalo en tu agente" | Landing | PAP-18, PAP-21 | done |
+| PAP-25 | Sección "Crea tus credenciales" | Landing | PAP-06, PAP-14, PAP-21 | done |
+| PAP-26 | Mobile first: landing + experiencia PWA | Landing | PAP-22 | done |
+| PAP-27 | Marquee infinito de compatibilidad | Landing | PAP-22 | done |
+| PAP-28 | Rendimiento y accesibilidad de animaciones | Landing | PAP-22…27 | done |
 
 **Orden sugerido:** PAP-01 → PAP-03 → PAP-15 → PAP-02 → PAP-05 / PAP-06 → PAP-04 → PAP-07 → PAP-16 → PAP-08 → PAP-09 → PAP-10 / PAP-11 → PAP-12 → PAP-13 → PAP-14 → PAP-17 → PAP-18 → PAP-19 → PAP-20.
 
@@ -667,7 +667,7 @@ Principios para toda la épica:
 
 ### PAP-21 — Referencia Hermes Agent + storyboard de la landing
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Landing
 - **Depende de:** —
 
@@ -694,13 +694,15 @@ Estudiar la web de Hermes Agent como referencia (animaciones por scroll, loops i
 - Prueba de los 5 segundos: alguien que no conoce PAP lee solo los títulos y explica de qué trata.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- Storyboard en `docs/LANDING.md`: 12 pantallas en orden, titular (≤ 12 palabras), línea de apoyo (≤ 20), animación y versión mobile de cada una; reglas de movimiento reducido, sin saltos de layout y sin librerías nuevas.
+- **Limitación:** la web oficial de Hermes Agent no se pudo abrir desde el entorno (política de red bloquea el dominio; tampoco hay código fuente público de esa landing en el repo de Nous). Los efectos se definieron a partir de tu descripción (historia con scroll, triggers, loops infinitos, terminal que escribe, poco texto) y quedaron documentados como propios, no copiados.
+- **Pendiente:** tu aprobación del storyboard y la prueba de los 5 segundos con alguien que no conozca PAP.
 
 ---
 
 ### PAP-22 — Landing narrativa con animaciones por scroll
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Landing
 - **Depende de:** PAP-21
 
@@ -721,13 +723,17 @@ Reescribir `web/src/app/page.tsx` según el storyboard. Animaciones disparadas p
 - Lighthouse: performance ≥ 85 en mobile.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `web/src/app/page.tsx` reescrita según el storyboard: hero (se mantiene la Creación de Adán con la chispa), problema ("A key in .env is a blank check" con la línea `PRIVATE_KEY=` tachándose), historia de 5 pasos, cómo funciona, instalar, API keys, servicios, en vivo y footer.
+- `components/landing/story.tsx`: en escritorio un teléfono fijo cambia de pantalla (QR de emparejamiento → visa → aprobar pago con sello → leer secreto con reason → sellos on-chain con `LimitExceeded`) a medida que cada paso llega al centro; en mobile cada paso trae su propio teléfono.
+- Sin librería de animación nueva: IntersectionObserver + CSS + un hook de progreso de scroll (`motion.tsx`).
+- Lighthouse (producción, mobile): **performance 94, CLS 0**; desktop 100. Para llegar ahí: el h1 ya no entra con animación (era el LCP), fondo con `next/image` responsive, menos pesos de fuentes y viem se carga solo cuando las estadísticas en vivo entran en pantalla (TBT de 410 → ~100 ms).
+- Capturas: `docs/img/landing/`. Pendiente: prueba en Safari iOS y Chrome Android reales.
 
 ---
 
 ### PAP-23 — Diagrama animado "Cómo funciona"
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Landing
 - **Depende de:** PAP-21
 
@@ -748,13 +754,15 @@ Diagrama SVG en línea que se va dibujando con el scroll: **Agente → Relay →
 - Lector de pantalla lee los pasos en orden.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `components/landing/how.tsx`: "Who signs what" con pestañas **Payments** (agente → relay → teléfono → HSK) y **Secrets** (laptop → relay → teléfono → HSK → agente); la línea se dibuja con el scroll y cada nodo se ilumina cuando la línea lo alcanza.
+- Vertical en mobile, horizontal en escritorio; es una lista ordenada HTML (no una imagen), así que el lector de pantalla lee los pasos en orden. Colores solo de los tokens del tema.
+- Capturas: `docs/img/landing/mobile-how.png`, `desktop-how.png`.
 
 ---
 
 ### PAP-24 — Sección "Instálalo en tu agente"
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Landing
 - **Depende de:** PAP-18, PAP-21
 
@@ -778,13 +786,15 @@ Terminal animada que escribe el comando y muestra el QR de emparejamiento (se re
 - Copiar y pegar cada comando en una máquina limpia → funciona.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `Install` en `components/landing/install.tsx`: pestañas **Claude Code** (`/plugin marketplace add …` + `/plugin install pap@pap`), **Cursor · Desktop** (clone + JSON de MCP), **Any agent** (`pap rpc` o `curl` a `/api/rpc`) y **CLI** (`pap secret exec`), con botón Copy (44 px, funciona con el dedo) y los 3 pasos Install → Scan the QR → Done. Terminal que escribe el flujo emparejar → pedir secreto.
+- Cada comando mostrado existe en el código de esta rama (plugin validado e instalado en prueba, CLI y RPC con sus tests).
+- Pendiente: probar copiar/pegar en una máquina limpia contra producción.
 
 ---
 
 ### PAP-25 — Sección "Crea tus credenciales"
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Landing
 - **Depende de:** PAP-06, PAP-14, PAP-21
 
@@ -802,13 +812,15 @@ Explicar en 3 pasos animados cómo sellar una credencial: **pegas la key** (`pap
 - Prueba con un usuario: tras leer la sección sabe sellar una key sin ayuda.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `Credentials`: 3 pasos que se iluminan en orden mientras la sección está en pantalla (pegar en tu laptop → elegir agente y límites → sellada), terminal con `pap seal` (valor oculto) y botón "Or seal it from your phone" → `/vault/new`.
+- Una línea explica lo que **no** protege (una vez entregada, el agente la tiene) con enlace al modelo de amenaza de `docs/SECURITY.md`.
+- Pendiente: prueba con un usuario.
 
 ---
 
 ### PAP-26 — Mobile first: landing + experiencia PWA
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Landing
 - **Depende de:** PAP-22
 
@@ -831,13 +843,17 @@ _Pendiente._
 - Instalar la PWA desde la landing en ambos.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- Landing diseñada primero a 390 px: sin scroll horizontal (verificado a 390 y 1280), objetivos táctiles ≥ 44 px, fuentes y espaciado propios de mobile, la historia no depende de `position: sticky` en mobile.
+- `HeroCTA`: en un teléfono el botón principal es **"Open my passport"** (va a la PWA) y el secundario "Install in your agent"; en escritorio al revés.
+- PWA: barra inferior Agents · Vault · Stamps (PAP-12), guía "Add to Home Screen" en iPhone sin instalar (PAP-13) y estados vacíos con una sola acción.
+- Se permite zoom (se quitó `maximum-scale=1` del viewport, pedido por accesibilidad).
+- Pendiente: instalar la PWA desde la landing en iPhone y Android reales.
 
 ---
 
 ### PAP-27 — Marquee infinito de compatibilidad
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Landing
 - **Depende de:** PAP-22
 
@@ -855,13 +871,14 @@ Cinta en loop infinito (se reutiliza el marquee actual) con lo que funciona con 
 - Revisión visual; verificar cada integración listada contra el código.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `Marquee`: dos filas infinitas en sentidos opuestos (Claude Code, Cursor, Claude Desktop, MCP, Agent Skills, JSON-RPC 2.0, EIP-1193, EIP-712 / cast, viem, ethers, web3.py, ERC-8004, x402-style gate, Web Push, HSK Chain); se pausa con hover o con un toque.
+- Todas las integraciones listadas existen en esta rama (cast/ethers/web3.py van por `pap rpc`, probado con viem; ver pendiente de PAP-09).
 
 ---
 
 ### PAP-28 — Rendimiento y accesibilidad de animaciones
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Landing
 - **Depende de:** PAP-22 a PAP-27
 
@@ -880,7 +897,9 @@ Pasada final: respetar `prefers-reduced-motion` (animaciones sustituidas por est
 - Activar reduced motion en iOS y revisar la landing completa.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- Lighthouse con build de producción: **mobile 94 / 100 / 100** (performance / accessibility / best practices), **desktop 100 / 100 / 100** en performance y best practices y 97→100 en accesibilidad tras los arreglos; CLS 0.
+- Arreglos: color `--muted` más oscuro (≥ 5:1 en todos los tonos de papel, mejora también la PWA), estados atenuados al 60 %, rosa más claro sobre fondo oscuro, enlaces subrayados dentro de texto, `<dl>` válido, zoom permitido.
+- `prefers-reduced-motion`: sin animaciones en curso y **0 bloques de texto ocultos** (verificado con Playwright en modo reducido); el contenido que entra animado tiene estado final estático.
 
 ---
 
