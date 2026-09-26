@@ -13,8 +13,8 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 
 ## Decisiones de diseño (base para todos los tickets)
 
-1. **Cifrado por capas con ECIES secp256k1.** La identity key del agente (`~/.pap/agent.json`) y la llave EVM del teléfono son secp256k1, así que se cifra directo a sus llaves públicas sin crear llaves nuevas. Capa interna → teléfono; capa externa → agente.
-2. **Doble firma.** El agente firma la solicitud (EIP-712 `{name, reason, nonce, expiry}`); el teléfono verifica, pide Face ID, quita su capa, re-cifra para el agente y firma la aprobación.
+1. **Cifrado por capas con ECIES secp256k1.** La identity key del agente (`~/.pap/agent.json`) y la llave EVM del teléfono son secp256k1, así que se cifra directo a sus llaves públicas sin crear llaves nuevas. `guardado = ECIES(teléfono, {name, agent, inner: ECIES(agente, {name, agent, secret})})`: capa externa → teléfono, capa interna → agente. *(Ajustado en PAP-01: con este orden el teléfono nunca ve el texto plano; solo quita su capa.)*
+2. **Doble firma.** El agente firma la solicitud (EIP-712 `RevealRequest {agent, name, reason, nonce, expiry}`); el teléfono verifica, pide Face ID, quita su capa y firma la aprobación (EIP-712 `RevealApproval`, que liga el hash del blob entregado).
 3. **El relay nunca ve texto plano** y no guarda llaves (se mantiene la promesa actual).
 4. **Visa on-chain para secretos.** Scope `keccak256("secret:" + name)` en `AgentPassport`: `grant(agentId, scope, maxAccesos, expiry)`; cada revelación hace `record(agentId, scope, 1, ref)`. Límite, expiración y revocación se reutilizan sin cambiar contratos.
 5. **Modelo de amenaza honesto.** Protege la *entrega*, no el *uso*: una vez revelado, el agente tiene el secreto. Se mitiga con keys de corta vida, alcance limitado y rotación.
@@ -24,9 +24,9 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 
 | ID | Título | Épica | Depende de | Estado |
 |---|---|---|---|---|
-| PAP-01 | Librería de cifrado por capas (ECIES) | Secretos | — | to do |
+| PAP-01 | Librería de cifrado por capas (ECIES) | Secretos | — | done |
 | PAP-02 | Relay: almacenamiento de secretos + request `reveal` | Secretos | PAP-01, PAP-03 | to do |
-| PAP-03 | Tipos EIP-712 para solicitud y aprobación | Secretos | — | to do |
+| PAP-03 | Tipos EIP-712 para solicitud y aprobación | Secretos | — | done |
 | PAP-04 | Teléfono: tarjeta de aprobación de secretos | Secretos / UX | PAP-02, PAP-15 | to do |
 | PAP-05 | MCP: tool `pap_secret` | Secretos | PAP-02 | to do |
 | PAP-06 | CLI: `pap seal` y `pap secret get` | Secretos | PAP-02 | to do |
@@ -63,7 +63,7 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 
 ### PAP-01 — Librería de cifrado por capas (ECIES)
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Secretos
 - **Depende de:** —
 
@@ -88,7 +88,12 @@ Módulo compartido (Node + navegador) con `seal(plaintext, phonePubKey, agentPub
 - Unit: `recoverPublicKey` coincide con `privateKeyToAccount(pk).publicKey`.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `mcp/src/pap-core.ts` (fuente de verdad) copiado a `web/src/lib/pap-core.ts` con `node scripts/sync-core.mjs`; el CI falla si se desincronizan.
+- ECIES: ECDH secp256k1 (`@noble/curves`) → HKDF-SHA256 → AES-256-GCM, todo con WebCrypto, así que corre igual en Node y en el navegador. Blob versionado `{v:1, alg, epk, iv, ct}`.
+- **Cambio frente al plan:** la capa externa es la del teléfono y la interna la del agente. Así el teléfono solo quita su capa y **nunca ve el texto plano** (antes el plan era "quitar y re-cifrar").
+- Agente y nombre del secreto van ligados como *additional data* de AES-GCM en las dos capas: un blob no se abre como si fuera de otro agente u otro nombre, aunque los blobs del relay sean públicos.
+- Llaves públicas: `recoverPublicKey` a partir de firmas personal_sign o EIP-712 (el relay las guarda al emparejar).
+- 10 tests en `mcp/test/core.test.ts` (`npm test`): round-trip, el agente solo no abre, el teléfono solo no lee, cambio de agente/nombre, un byte alterado, llaves comprimidas y sin comprimir, recuperación de llaves.
 
 ---
 
@@ -132,7 +137,7 @@ _Pendiente._
 
 ### PAP-03 — Tipos EIP-712 para solicitud y aprobación
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Secretos
 - **Depende de:** —
 
@@ -153,7 +158,9 @@ Definir domain `{name: "PAP", version: "1", chainId: 133, verifyingContract: Age
 - Unit: cambiar `reason`, `name` o `resultHash` invalida la firma.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- En `pap-core.ts`: dominio `{name:"PAP", version:"1", chainId:133, verifyingContract: AgentPassport}` y tipos `RevealRequest`, `RevealApproval` (liga `resultHash` = hash del blob entregado) y `SealRequest` (nuevo: el sellador firma el hash del blob, el máximo de lecturas y la expiración).
+- `typedData()`, `publicKeyFromTypedSig()` y `wire()` (bigint → string para el JSON del relay).
+- Tests: firmar y recuperar; cambiar `reason`, `name`, `nonce` o `resultHash` invalida la firma.
 
 ---
 
