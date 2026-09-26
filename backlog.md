@@ -726,7 +726,7 @@ Reescribir `web/src/app/page.tsx` según el storyboard. Animaciones disparadas p
 - `web/src/app/page.tsx` reescrita según el storyboard: hero (se mantiene la Creación de Adán con la chispa), problema ("A key in .env is a blank check" con la línea `PRIVATE_KEY=` tachándose), historia de 5 pasos, cómo funciona, instalar, API keys, servicios, en vivo y footer.
 - `components/landing/story.tsx`: en escritorio un teléfono fijo cambia de pantalla (QR de emparejamiento → visa → aprobar pago con sello → leer secreto con reason → sellos on-chain con `LimitExceeded`) a medida que cada paso llega al centro; en mobile cada paso trae su propio teléfono.
 - Sin librería de animación nueva: IntersectionObserver + CSS + un hook de progreso de scroll (`motion.tsx`).
-- Lighthouse (producción, mobile): **performance 94, CLS 0**; desktop 100. Para llegar ahí: el h1 ya no entra con animación (era el LCP), fondo con `next/image` responsive, menos pesos de fuentes y viem se carga solo cuando las estadísticas en vivo entran en pantalla (TBT de 410 → ~100 ms).
+- Lighthouse (producción): mobile **performance 89–94** según la corrida (partía de 68), CLS 0; desktop 100. Para llegar ahí: el h1 ya no entra con animación (era el LCP), fondo con `next/image` responsive, menos pesos de fuentes y viem se carga solo cuando las estadísticas en vivo entran en pantalla (TBT de 410 → ~100 ms).
 - Capturas: `docs/img/landing/`. Pendiente: prueba en Safari iOS y Chrome Android reales.
 
 ---
@@ -897,7 +897,7 @@ Pasada final: respetar `prefers-reduced-motion` (animaciones sustituidas por est
 - Activar reduced motion en iOS y revisar la landing completa.
 
 **Resumen post-desarrollo**
-- Lighthouse con build de producción: **mobile 94 / 100 / 100** (performance / accessibility / best practices), **desktop 100 / 100 / 100** en performance y best practices y 97→100 en accesibilidad tras los arreglos; CLS 0.
+- Lighthouse con build de producción (performance / accessibility / best practices): **desktop 100 / 100 / 100**; **mobile 89–94 / 100 / 100** (la performance simulada varía entre corridas); CLS 0 en todas. Punto de partida: mobile 68 / 85 / 96.
 - Arreglos: color `--muted` más oscuro (≥ 5:1 en todos los tonos de papel, mejora también la PWA), estados atenuados al 60 %, rosa más claro sobre fondo oscuro, enlaces subrayados dentro de texto, `<dl>` válido, zoom permitido.
 - `prefers-reduced-motion`: sin animaciones en curso y **0 bloques de texto ocultos** (verificado con Playwright en modo reducido); el contenido que entra animado tiene estado final estático.
 

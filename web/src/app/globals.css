@@ -67,9 +67,7 @@ input::placeholder { color: var(--muted); }
   0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0.7; }
   100% { transform: translate(-50%, -50%) scale(3.2); opacity: 0; }
 }
-@keyframes march { to { stroke-dashoffset: -24; } }
 @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-@keyframes travel { from { offset-distance: 0%; } to { offset-distance: 100%; } }
 @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
 @keyframes sweep { from { transform: translateX(-120%) skewX(-20deg); } to { transform: translateX(220%) skewX(-20deg); } }
 @keyframes blink { 50% { opacity: 0; } }
@@ -80,7 +78,6 @@ input::placeholder { color: var(--muted); }
 .ripple { animation: ripple 2.4s ease-out infinite; }
 .ripple.d2 { animation-delay: 0.8s; }
 .ripple.d3 { animation-delay: 1.6s; }
-.march { stroke-dasharray: 6 6; animation: march 1.2s linear infinite; }
 .marquee { animation: marquee 28s linear infinite; }
 .marquee-rev { animation-direction: reverse; animation-duration: 34s; }
 .marquee-wrap:hover .marquee, .marquee-wrap.paused .marquee { animation-play-state: paused; }
@@ -112,7 +109,7 @@ input::placeholder { color: var(--muted); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .spark, .ripple, .march, .marquee, .rise, .rise-2, .rise-3, .stamp-in, .cursor::after { animation: none !important; }
+  .spark, .ripple, .marquee, .rise, .rise-2, .rise-3, .stamp-in, .cursor::after { animation: none !important; }
   .reveal { opacity: 1; transform: none; transition: none; }
   .strike::after { transform: scaleX(1); transition: none; }
   *, *::before, *::after { transition-duration: 0.01ms !important; scroll-behavior: auto !important; }

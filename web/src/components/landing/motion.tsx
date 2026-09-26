@@ -88,37 +88,6 @@ export function Terminal({ lines = GATE_LINES }: { lines?: TermLine[] }) {
   );
 }
 
-/** Agent → Phone → Chain with a dot travelling the path, forever. */
-export function Flow() {
-  const nodes = [
-    { x: 60, y: 90, label: "Agent", sub: "Claude Code · MCP" },
-    { x: 300, y: 40, label: "Relay", sub: "signed request" },
-    { x: 540, y: 90, label: "Phone", sub: "passkey · Face ID" },
-    { x: 780, y: 40, label: "HSK Chain", sub: "AgentPassport.pay" },
-  ];
-  const d = "M60,90 C180,90 180,40 300,40 S420,90 540,90 S660,40 780,40";
-  return (
-    <svg viewBox="0 0 840 140" className="w-full" aria-hidden>
-      <path d={d} fill="none" stroke="var(--border)" strokeWidth="2" />
-      <path d={d} fill="none" stroke="var(--accent)" strokeWidth="2" className="march" opacity="0.6" />
-      {nodes.map((n) => (
-        <g key={n.label}>
-          <circle cx={n.x} cy={n.y} r="10" fill="var(--surface)" stroke="var(--accent)" strokeWidth="2" />
-          <text x={n.x} y={n.y + 34} textAnchor="middle" fontSize="15" fontWeight="600" fill="var(--foreground)" fontFamily="var(--font-barlow)" letterSpacing="0.5">
-            {n.label.toUpperCase()}
-          </text>
-          <text x={n.x} y={n.y + 52} textAnchor="middle" fontSize="11" fill="var(--muted)">
-            {n.sub}
-          </text>
-        </g>
-      ))}
-      <circle r="6" fill="var(--accent-soft)" style={{ offsetPath: `path("${d}")`, animation: "travel 4s linear infinite" }}>
-        <animate attributeName="r" values="5;7;5" dur="1s" repeatCount="indefinite" />
-      </circle>
-    </svg>
-  );
-}
-
 /** True once (or while, with `once: false`) the element is in the viewport. */
 export function useInView<T extends Element>(opts: { once?: boolean; rootMargin?: string; threshold?: number } = {}) {
   const ref = useRef<T>(null);
