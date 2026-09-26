@@ -23,6 +23,27 @@ Scope: `contracts/src/AgentPassport.sol`, `IdentityRegistry.sol`. Quick self-rev
 9. **DemoUSDT has public `mint`** and ReputationRegistry has no Sybil resistance — testnet demo pieces.
 10. **ZK PassportRegistry (iteration 3)**: the zkpjwt circuit has no nullifier signal; the nullifier is assigned off-chain. Proof verification on-chain is real, unlinkability is not yet.
 
+## Sealed secrets — threat model
+
+**Guarantees**
+
+- **2-of-2 by cryptography, not by a server.** The stored blob is `ECIES(owner, ECIES(agent, secret))`. The agent alone can't open it; the phone alone only gets the inner blob (still encrypted to the agent); the relay stores ciphertext and holds no keys.
+- **Bound to agent + name.** Both are AES-GCM additional data in each layer, and checked in the plaintext. Blobs on Vercel Blob are public, but one can't be replayed as another agent's or another secret's.
+- **Every request is signed and single-use.** EIP-712 `RevealRequest` (agent) with a nonce and ≤ 15 min expiry; EIP-712 `RevealApproval` (owner) bound to the hash of the released blob; `SealRequest` bound to the hash of the stored blob.
+- **Limits are on-chain.** Reads are counted by `AgentPassport.record()` on scope `secret:<name>`, *before* the blob is released; `LimitExceeded` / `GrantExpired` / `NoGrant` (revoked) stop the release.
+- **The human sees why.** The agent's `reason` is shown verbatim on the phone; the push notification never contains it (or the secret name).
+
+**Not protected (by design)**
+
+1. **Use after release.** Once the agent has the value it can use or leak it. Mitigations: short-lived / scoped provider keys, few reads, rotation (Vault → Rotate), and delivery to a 0600 file so the value stays out of the model's context.
+2. **A compromised agent machine.** The identity key lives in `~/.pap/agent.json`; malware there can ask for secrets like the agent — but still needs the human's Face ID for each read, and sees the `reason` it forges.
+3. **A human who approves blindly.** The phone shows the reason and read count; it can't judge them.
+4. **A compromised phone.** The owner key decrypts its layer and grants visas. PRF-wrapped passkey storage (iOS 18+) raises the bar; it doesn't remove it.
+5. **Relay availability.** The relay can refuse or delay requests (liveness), not read or forge them.
+6. **Nonce races.** Vercel Blob writes aren't atomic: two simultaneous requests with the same nonce could both pass the relay check. The on-chain `record()` still counts each read.
+7. **Agent-side `record()`.** The agent key may call `record()` on its own secret scope and burn reads (hurting only itself; it gets nothing).
+8. **Metadata.** Secret names, read counts and timestamps are visible (relay + chain events); values never are.
+
 ## What we'd fix for mainnet
 
 - Replace `limit == 0 → unlimited` with an explicit `unlimited` flag; make `0` mean zero.

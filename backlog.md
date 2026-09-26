@@ -42,7 +42,7 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 | PAP-16 | Skills `pap-secrets` y `pap-seal` | Skills | PAP-05, PAP-06 | done |
 | PAP-17 | Skills `pap-payments`, `pap-gate`, `pap-onboarding`, `pap-rpc` | Skills | PAP-09 | done |
 | PAP-18 | Plugin de Claude Code + `docs/AGENTS.md` | Skills | PAP-16, PAP-17 | done |
-| PAP-19 | Documentación: arquitectura de secretos y modelo de amenaza | Docs | PAP-07 | to do |
+| PAP-19 | Documentación: arquitectura de secretos y modelo de amenaza | Docs | PAP-07 | done |
 | PAP-20 | Investigación: políticas automáticas sin Face ID | Secretos | PAP-07 | to do |
 | PAP-21 | Referencia Hermes Agent + storyboard de la landing | Landing | — | to do |
 | PAP-22 | Landing narrativa con animaciones por scroll | Landing | PAP-21 | to do |
@@ -885,7 +885,7 @@ _Pendiente._
 
 ### PAP-19 — Documentación: arquitectura de secretos y modelo de amenaza
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Docs
 - **Depende de:** PAP-07
 
@@ -903,4 +903,7 @@ Sección "Secrets" en `docs/ARCHITECTURE.md` (flujo, formato de blob, EIP-712, v
 - Revisión por alguien del equipo que no haya implementado la feature.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `docs/ARCHITECTURE.md`: sección **Sealed secrets** con diagrama del flujo de doble firma (laptop → relay → teléfono → agente), tabla de piezas, por qué ese orden de capas y los dos caminos de sellado; secciones JSON-RPC, Notificaciones y Plugin; tools y scripts de prueba nuevos.
+- `docs/SECURITY.md`: **Sealed secrets — threat model** con garantías (2-de-2 criptográfico, ligado a agente + nombre, firmas de un solo uso, límites on-chain antes de entregar) y una lista explícita de lo que **no** protege (uso después de entregar, máquina del agente comprometida, humano que aprueba sin leer, teléfono comprometido, disponibilidad del relay, carreras de nonce, `record()` del agente, metadatos).
+- `README.md`: sección "Sealed secrets (iteration 4)", instalación del plugin, cómo sellar, estructura del repo y fila 4 en el roadmap.
+- **Pendiente:** revisión por alguien del equipo que no haya implementado la feature.
