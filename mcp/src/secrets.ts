@@ -47,19 +47,24 @@ export function requirePaired(id: Identity) {
 }
 
 export async function listSecrets(id: Identity): Promise<SecretMeta[]> {
+  await ensureAgentKey(id).catch(() => {}); // lets the phone's vault page seal for this agent
   return call<SecretMeta[]>(id, `/api/secrets?agent=${id.address}`);
+}
+
+/** Publish this agent's public key on the relay if it doesn't have it yet. */
+async function ensureAgentKey(id: Identity): Promise<AgentRecord> {
+  const rec = await call<AgentRecord>(id, `/api/agents/${id.address}`);
+  if (rec.agentPublicKey) return rec;
+  const payload = { agentAddress: id.address, role: "agent" };
+  return call<AgentRecord>(id, `/api/agents/${id.address}/keys`, {
+    method: "POST",
+    body: JSON.stringify({ role: "agent", sig: await sign(id, "pubkey", payload) }),
+  });
 }
 
 /** Make sure the relay knows both public keys; publish the agent's own if missing. */
 async function keys(id: Identity): Promise<{ agentPub: Hex; ownerPub: Hex }> {
-  let rec = await call<AgentRecord>(id, `/api/agents/${id.address}`);
-  if (!rec.agentPublicKey) {
-    const payload = { agentAddress: id.address, role: "agent" };
-    rec = await call<AgentRecord>(id, `/api/agents/${id.address}/keys`, {
-      method: "POST",
-      body: JSON.stringify({ role: "agent", sig: await sign(id, "pubkey", payload) }),
-    });
-  }
+  const rec = await ensureAgentKey(id);
   if (!rec.ownerPublicKey)
     throw new Error(
       "The relay doesn't know your phone's public key yet (agent paired before secrets existed). Approve any request on the phone once, then retry."

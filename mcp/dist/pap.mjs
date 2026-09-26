@@ -58584,7 +58584,18 @@ function requirePaired(id) {
   if (!id.ownerAddress) throw new Error("Not paired. Run pap_connect (MCP) or ask your human to pair this agent first.");
 }
 async function listSecrets(id) {
+  await ensureAgentKey(id).catch(() => {
+  });
   return call2(id, `/api/secrets?agent=${id.address}`);
+}
+async function ensureAgentKey(id) {
+  const rec = await call2(id, `/api/agents/${id.address}`);
+  if (rec.agentPublicKey) return rec;
+  const payload = { agentAddress: id.address, role: "agent" };
+  return call2(id, `/api/agents/${id.address}/keys`, {
+    method: "POST",
+    body: JSON.stringify({ role: "agent", sig: await sign2(id, "pubkey", payload) })
+  });
 }
 async function requestReveal(id, name, reason) {
   requirePaired(id);

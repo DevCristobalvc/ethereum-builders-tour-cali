@@ -22063,17 +22063,21 @@ function requirePaired(id) {
   if (!id.ownerAddress) throw new Error("Not paired. Run pap_connect (MCP) or ask your human to pair this agent first.");
 }
 async function listSecrets(id) {
+  await ensureAgentKey(id).catch(() => {
+  });
   return call(id, `/api/secrets?agent=${id.address}`);
 }
+async function ensureAgentKey(id) {
+  const rec = await call(id, `/api/agents/${id.address}`);
+  if (rec.agentPublicKey) return rec;
+  const payload = { agentAddress: id.address, role: "agent" };
+  return call(id, `/api/agents/${id.address}/keys`, {
+    method: "POST",
+    body: JSON.stringify({ role: "agent", sig: await sign2(id, "pubkey", payload) })
+  });
+}
 async function keys(id) {
-  let rec = await call(id, `/api/agents/${id.address}`);
-  if (!rec.agentPublicKey) {
-    const payload = { agentAddress: id.address, role: "agent" };
-    rec = await call(id, `/api/agents/${id.address}/keys`, {
-      method: "POST",
-      body: JSON.stringify({ role: "agent", sig: await sign2(id, "pubkey", payload) })
-    });
-  }
+  const rec = await ensureAgentKey(id);
   if (!rec.ownerPublicKey)
     throw new Error(
       "The relay doesn't know your phone's public key yet (agent paired before secrets existed). Approve any request on the phone once, then retry."

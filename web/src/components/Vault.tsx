@@ -1,5 +1,6 @@
 "use client";
 /** Sealed secrets of every agent this wallet owns: who can read what, how often, until when. Revoke / rotate. */
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { readSecretGrant, revokeVisa, type Grant } from "@/lib/onchain";
 import { secretScope } from "@/lib/pap-core";
@@ -76,6 +77,9 @@ export function Vault({ w }: { w: StoredWallet }) {
 
   return (
     <>
+      <Link href="/vault/new" className="rounded-full bg-foreground px-5 py-3.5 text-center text-[15px] font-semibold text-white">
+        + Seal a secret
+      </Link>
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
       {rows.length === 0 ? (
         <Card>

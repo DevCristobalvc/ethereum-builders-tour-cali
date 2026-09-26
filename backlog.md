@@ -37,9 +37,9 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 | PAP-11 | Métodos `wallet_*` (EIP-7715, EIP-5792, capabilities) | JSON-RPC | PAP-09 | to do |
 | PAP-12 | `/wallet`: pestañas Agentes · Bóveda · Sellos | UX | PAP-02, PAP-15 | done |
 | PAP-13 | Notificaciones push en la PWA | UX | PAP-04 | to do |
-| PAP-14 | `/vault/new`: sellar desde el navegador | UX | PAP-01, PAP-02 | to do |
-| PAP-15 | Mockups de aprobación y Bóveda | UX | — | to do |
-| PAP-16 | Skills `pap-secrets` y `pap-seal` | Skills | PAP-05, PAP-06 | to do |
+| PAP-14 | `/vault/new`: sellar desde el navegador | UX | PAP-01, PAP-02 | done |
+| PAP-15 | Mockups de aprobación y Bóveda | UX | — | done |
+| PAP-16 | Skills `pap-secrets` y `pap-seal` | Skills | PAP-05, PAP-06 | done |
 | PAP-17 | Skills `pap-payments`, `pap-gate`, `pap-onboarding`, `pap-rpc` | Skills | PAP-09 | to do |
 | PAP-18 | Plugin de Claude Code + `docs/AGENTS.md` | Skills | PAP-16, PAP-17 | to do |
 | PAP-19 | Documentación: arquitectura de secretos y modelo de amenaza | Docs | PAP-07 | to do |
@@ -438,7 +438,7 @@ _Pendiente._
 
 ### PAP-15 — Mockups de aprobación y Bóveda
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** UX
 - **Depende de:** —
 
@@ -456,7 +456,9 @@ Mockups (HTML estático con el estilo actual: Cormorant + Barlow Condensed, acen
 - Revisión visual en iPhone (ancho 390px).
 
 **Resumen post-desarrollo**
-_Pendiente._
+- En lugar de mockups estáticos se construyeron las pantallas reales en el estilo actual y se capturaron a 390px con Playwright contra el relay local: `docs/img/phone/approve-reveal.png`, `wallet-agents.png`, `wallet-vault.png`, `wallet-stamps.png`, `vault-new.png`.
+- Pagos y secretos comparten tarjeta y lenguaje visual; solo cambia el ícono (💸 / 🔑 / 🔒).
+- **Pendiente:** aprobación de Cristóbal sobre las capturas; los ajustes que pida se hacen directamente en los componentes.
 
 ---
 
@@ -518,7 +520,7 @@ _Pendiente._
 
 ### PAP-14 — `/vault/new`: sellar desde el navegador
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** UX
 - **Depende de:** PAP-01, PAP-02
 
@@ -537,7 +539,10 @@ Página para sellar sin terminal: pegar secreto, elegir agente de una lista, ele
 - Inspeccionar la red: ninguna petición lleva el texto plano.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `/vault/new` (enlazada desde **Bóveda → + Seal a secret**): eliges agente de una lista, nombre, valor (campo password), máximo de lecturas y días. Face ID → cifra en el navegador → `grant` on-chain → firma `SealRequest` como dueño → el relay lo guarda **activo** de una (sin segundo paso).
+- El texto plano nunca sale del dispositivo: al relay solo llega el blob cifrado.
+- Si el relay no tiene la llave pública del agente, se explica cómo resolverlo; `pap_secrets_list` / `pap secret list` ahora la publican automáticamente.
+- Captura a 390px: `docs/img/phone/vault-new.png`. Pendiente: prueba real en iPhone con HSK.
 
 ---
 
@@ -545,7 +550,7 @@ _Pendiente._
 
 ### PAP-16 — Skills `pap-secrets` y `pap-seal`
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Skills
 - **Depende de:** PAP-05, PAP-06
 
@@ -566,7 +571,10 @@ _Pendiente._
 - Pedir "imprime la key" → el agente se niega.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `.claude/skills/pap-secrets/SKILL.md`: se activa ante cualquier necesidad de credencial; flujo gate → lista → `pap_secret` (entrega en archivo) o `pap secret exec`; tabla de errores; las tres reglas de oro explícitas.
+- `.claude/skills/pap-seal/SKILL.md`: guía al humano a sellar desde **su** terminal o desde `/vault/new`; qué hacer si pega un secreto en el chat (recomendar rotarlo, no usarlo); cómo elegir límites.
+- Formato Agent Skills (frontmatter `name` + `description`), así que sirve fuera de Claude Code.
+- **Pendiente:** las pruebas con sesiones reales de Claude Code (que la skill se active sola, que se niegue a imprimir la key) necesitan un agente emparejado contra el relay de producción.
 
 ---
 
