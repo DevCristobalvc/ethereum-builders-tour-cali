@@ -48,6 +48,8 @@ jobs:
       - run: npm run build
       - name: pap-core copy in web/ matches mcp/src/pap-core.ts
         run: node ../scripts/sync-core.mjs --check
+      - name: plugin/ matches .claude/skills + mcp/dist
+        run: node ../scripts/sync-plugin.mjs --check
       - name: Committed bundle matches source
         run: git diff --exit-code -- dist/pap.mjs dist/pap-cli.mjs || (echo "::error::mcp/dist bundles are stale — run 'cd mcp && npm run build' and commit it" && exit 1)
 

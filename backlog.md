@@ -40,8 +40,8 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 | PAP-14 | `/vault/new`: sellar desde el navegador | UX | PAP-01, PAP-02 | done |
 | PAP-15 | Mockups de aprobación y Bóveda | UX | — | done |
 | PAP-16 | Skills `pap-secrets` y `pap-seal` | Skills | PAP-05, PAP-06 | done |
-| PAP-17 | Skills `pap-payments`, `pap-gate`, `pap-onboarding`, `pap-rpc` | Skills | PAP-09 | to do |
-| PAP-18 | Plugin de Claude Code + `docs/AGENTS.md` | Skills | PAP-16, PAP-17 | to do |
+| PAP-17 | Skills `pap-payments`, `pap-gate`, `pap-onboarding`, `pap-rpc` | Skills | PAP-09 | done |
+| PAP-18 | Plugin de Claude Code + `docs/AGENTS.md` | Skills | PAP-16, PAP-17 | done |
 | PAP-19 | Documentación: arquitectura de secretos y modelo de amenaza | Docs | PAP-07 | to do |
 | PAP-20 | Investigación: políticas automáticas sin Face ID | Secretos | PAP-07 | to do |
 | PAP-21 | Referencia Hermes Agent + storyboard de la landing | Landing | — | to do |
@@ -598,7 +598,7 @@ Página para sellar sin terminal: pegar secreto, elegir agente de una lista, ele
 
 ### PAP-17 — Skills `pap-payments`, `pap-gate`, `pap-onboarding`, `pap-rpc`
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Skills
 - **Depende de:** PAP-09
 
@@ -620,13 +620,15 @@ Página para sellar sin terminal: pegar secreto, elegir agente de una lista, ele
 - Una sesión de Claude Code por skill con un prompt que la dispare.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `.claude/skills/pap-payments` (revisar visa, contactos, memo claro, no partir pagos, rechazo final), `pap-gate` (402 → `pap_call_gate`, preferir gate antes que secretos, protocolo para otros lenguajes), `pap-onboarding` (emparejar, qué visa elegir, notificaciones, otros clientes MCP) y `pap-rpc` (levantar `pap rpc` y apuntar cast/viem/ethers/web3.py; nunca `--private-key`).
+- Cada `description` dice cuándo activarse. Ninguna skill sugiere poner una private key en `.env`.
+- **Pendiente:** probar cada skill en una sesión real de Claude Code con un agente emparejado contra producción.
 
 ---
 
 ### PAP-18 — Plugin de Claude Code + `docs/AGENTS.md`
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Skills
 - **Depende de:** PAP-16, PAP-17
 
@@ -645,7 +647,10 @@ Empaquetar skills + servidor MCP como plugin de Claude Code (`/plugin install pa
 - Instalar el plugin en un repo vacío → "conecta PAP" → flujo completo.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- Plugin en `plugin/` (`.claude-plugin/plugin.json`, `.mcp.json` con `${CLAUDE_PLUGIN_ROOT}/dist/pap.mjs`, las 6 skills y la CLI) + marketplace en `.claude-plugin/marketplace.json`. Instalación: `/plugin marketplace add DevCristobalvc/ethereum-builders-tour-cali` → `/plugin install pap@pap`.
+- Un plugin se copia a un caché al instalarse y no puede referenciar archivos fuera de su carpeta, así que `scripts/sync-plugin.mjs` copia bundles y skills (reescribe la ruta de la CLI a `${CLAUDE_PLUGIN_ROOT}`); el CI verifica que esté al día.
+- Verificado: `claude plugin validate` (plugin `--strict` y marketplace) pasa; instalación real en un HOME aislado → plugin habilitado, el bundle desde el caché expone las 8 tools.
+- `docs/AGENTS.md`: las mismas reglas y una tabla "qué usar cuándo" para agentes sin soporte de skills.
 
 ---
 
