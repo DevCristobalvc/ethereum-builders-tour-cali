@@ -8,7 +8,7 @@
  */
 import { put, list } from "@vercel/blob";
 
-export type Kind = "pair" | "request" | "agent" | "secret" | "nonce";
+export type Kind = "pair" | "request" | "agent" | "secret" | "nonce" | "push";
 
 const memory = !process.env.BLOB_READ_WRITE_TOKEN && process.env.NODE_ENV !== "production";
 const mem = ((globalThis as { __papStore?: Map<string, unknown> }).__papStore ??= new Map<string, unknown>());

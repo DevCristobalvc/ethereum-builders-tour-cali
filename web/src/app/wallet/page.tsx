@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatEther, formatUnits } from "viem";
 import { Agents } from "@/components/Agents";
+import { PushToggle } from "@/components/PushToggle";
 import { Stamps } from "@/components/Stamps";
 import { Vault } from "@/components/Vault";
 import { WalletGate } from "@/components/WalletGate";
@@ -87,6 +88,8 @@ function Dashboard({ w }: { w: StoredWallet }) {
           ))}
         </div>
       </Card>
+
+      <PushToggle w={w} />
 
       {tab === "agents" && (
         <>

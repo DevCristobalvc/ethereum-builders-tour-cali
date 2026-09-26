@@ -1,5 +1,7 @@
 import { isAddress, type Address, type Hex } from "viem";
+import { after } from "next/server";
 import { bad, baseUrl, json } from "@/lib/api";
+import { notifyOwner } from "@/lib/push";
 import { blobHash, SECRET_NAME } from "@/lib/pap-core";
 import { meta, nowS, readSecret, rememberKey, secretId, typedSigner, consumeNonce } from "@/lib/secrets";
 import { newId, read, readAll, write } from "@/lib/store";
@@ -100,6 +102,7 @@ export async function POST(req: Request) {
   };
   await write("secret", `pending.${request.id}`, { ...record, sealRequestId: request.id, staging: true });
   await write("request", request.id, request);
+  after(() => notifyOwner(request.ownerAddress, request.agentName, action, `/approve/${request.id}`).catch(() => {}));
   const replaces = await readSecret(agentAddress, action.name);
   return json({
     status: "pending",

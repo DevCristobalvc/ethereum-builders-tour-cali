@@ -1,5 +1,7 @@
 import { isAddress, type Address, type Hex } from "viem";
+import { after } from "next/server";
 import { bad, json, baseUrl } from "@/lib/api";
+import { notifyOwner } from "@/lib/push";
 import { SECRET_NAME } from "@/lib/pap-core";
 import { MAX_REQUEST_TTL_S, nowS, readSecret, rememberKey, typedSigner, consumeNonce } from "@/lib/secrets";
 import { verifySig } from "@/lib/sig";
@@ -66,6 +68,7 @@ export async function POST(req: Request) {
     expiresAt: now + TTL_MS,
   };
   await write("request", state.id, state);
+  after(() => notifyOwner(state.ownerAddress, state.agentName, state.action, `/approve/${state.id}`).catch(() => {}));
   return json({
     requestId: state.id,
     url: `${baseUrl()}/approve/${state.id}`,

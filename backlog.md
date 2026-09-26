@@ -36,7 +36,7 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 | PAP-10 | `eth_getEncryptionPublicKey` / `eth_decrypt` sobre doble firma | JSON-RPC | PAP-09 | done |
 | PAP-11 | Métodos `wallet_*` (EIP-7715, EIP-5792, capabilities) | JSON-RPC | PAP-09 | done |
 | PAP-12 | `/wallet`: pestañas Agentes · Bóveda · Sellos | UX | PAP-02, PAP-15 | done |
-| PAP-13 | Notificaciones push en la PWA | UX | PAP-04 | to do |
+| PAP-13 | Notificaciones push en la PWA | UX | PAP-04 | done |
 | PAP-14 | `/vault/new`: sellar desde el navegador | UX | PAP-01, PAP-02 | done |
 | PAP-15 | Mockups de aprobación y Bóveda | UX | — | done |
 | PAP-16 | Skills `pap-secrets` y `pap-seal` | Skills | PAP-05, PAP-06 | done |
@@ -509,7 +509,7 @@ Reorganizar `web/src/app/wallet/page.tsx` en tres pestañas. **Agentes** (existe
 
 ### PAP-13 — Notificaciones push en la PWA
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** UX
 - **Depende de:** PAP-04
 
@@ -528,7 +528,11 @@ Web Push (iOS 16.4+ con la PWA instalada). El teléfono se suscribe al emparejar
 - Suscripción caducada → fallback a QR sin error.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `public/sw.js` (service worker): muestra la notificación y al tocarla abre `/approve/:id`. `components/PushToggle.tsx` en `/wallet`: botón "🔔 Get approvals as notifications" (pide permiso, suscribe, firma con Face ID); en iPhone sin instalar muestra la guía "Add to Home Screen".
+- Relay: `POST/GET /api/push/subscribe` (suscripción firmada por el dueño, hasta 5 dispositivos) y `lib/push.ts` con `web-push` (VAPID). Se envía con `after()` al crear un request o un seal, así que **nunca retrasa ni rompe** la creación del request; suscripciones muertas (404/410) se eliminan.
+- El payload solo lleva agente + tipo de acción ("X wants to read a secret"): ni monto, ni dirección, ni nombre del secreto, ni reason.
+- **Configuración pendiente en Vercel:** `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (y opcional `VAPID_SUBJECT`). Se generan con `npx web-push generate-vapid-keys`. Sin ellas, push queda apagado y el QR sigue funcionando.
+- Prueba: `mcp/scripts/push-test.ts` con un servicio push falso por HTTPS que descifra el mensaje como un navegador (RFC 8291): **10 checks**. Pendiente: prueba en iPhone real.
 
 ---
 
