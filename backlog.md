@@ -31,7 +31,7 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 | PAP-05 | MCP: tool `pap_secret` | Secretos | PAP-02 | done |
 | PAP-06 | CLI: `pap seal` y `pap secret get` | Secretos | PAP-02 | done |
 | PAP-07 | Visa y auditoría on-chain para secretos | Secretos | PAP-04 | done |
-| PAP-08 | JSON-RPC 2.0: endpoint `/api/rpc` con namespace `pap_*` | JSON-RPC | PAP-02 | to do |
+| PAP-08 | JSON-RPC 2.0: endpoint `/api/rpc` con namespace `pap_*` | JSON-RPC | PAP-02 | done |
 | PAP-09 | Signer local EIP-1193 (`pap rpc`) | JSON-RPC | PAP-08 | to do |
 | PAP-10 | `eth_getEncryptionPublicKey` / `eth_decrypt` sobre doble firma | JSON-RPC | PAP-09 | to do |
 | PAP-11 | Métodos `wallet_*` (EIP-7715, EIP-5792, capabilities) | JSON-RPC | PAP-09 | to do |
@@ -329,7 +329,7 @@ _Pendiente._
 
 ### PAP-08 — JSON-RPC 2.0: endpoint `/api/rpc` con namespace `pap_*`
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** JSON-RPC
 - **Depende de:** PAP-02
 
@@ -350,7 +350,11 @@ _Pendiente._
 - Paridad: el mismo flujo por REST y por RPC da el mismo resultado.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `web/src/app/api/rpc/route.ts`: JSON-RPC 2.0 con llamadas sueltas, batch y notificaciones. Cada método **llama al handler REST existente** (no duplica lógica), así que firmas y validaciones son idénticas.
+- Métodos: `pap_requestTransfer`, `pap_requestSecret`, `pap_sealSecret`, `pap_getRequest`, `pap_listSecrets`, `pap_getAgent`, `pap_canAct`, `pap_chainId`, `pap_contracts`, `rpc.discover` (también `GET /api/rpc`).
+- Errores JSON-RPC estándar + códigos EIP-1474 mapeados desde el status REST (`-32000` firma/nonce, `-32001` no encontrado, `-32002` no emparejado, `-32003` expirado, `-32005` límite), con `error.data.httpStatus`.
+- **Cambio frente al plan:** `4001` queda para el signer local (EIP-1193); en el relay un rechazo es un request con `status: "rejected"`, no un error.
+- Especificación: `docs/RPC.md`. Prueba: `mcp/scripts/rpc-test.ts`, **18 checks** (conformidad JSON-RPC + flujo de secretos por RPC).
 
 ---
 
