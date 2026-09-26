@@ -16,3 +16,6 @@ contracts/broadcast/**/dry-run/
 mcp/dist/*
 !mcp/dist/pap.mjs
 !mcp/dist/pap-cli.mjs
+
+# Claude Code plugin ships its own copy of the bundles (a plugin cannot reference files outside itself)
+!plugin/dist/
