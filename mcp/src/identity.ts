@@ -50,6 +50,7 @@ export function saveIdentity(id: Identity) {
 }
 
 export const identityPath = () => FILE;
+export const identityDir = () => DIR;
 
 export function account(id: Identity) {
   return privateKeyToAccount(id.privateKey);

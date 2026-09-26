@@ -49,7 +49,7 @@ jobs:
       - name: pap-core copy in web/ matches mcp/src/pap-core.ts
         run: node ../scripts/sync-core.mjs --check
       - name: Committed bundle matches source
-        run: git diff --exit-code -- dist/pap.mjs || (echo "::error::mcp/dist/pap.mjs is stale — run 'cd mcp && npm run build' and commit it" && exit 1)
+        run: git diff --exit-code -- dist/pap.mjs dist/pap-cli.mjs || (echo "::error::mcp/dist bundles are stale — run 'cd mcp && npm run build' and commit it" && exit 1)
 
   contracts:
     name: contracts (forge test)

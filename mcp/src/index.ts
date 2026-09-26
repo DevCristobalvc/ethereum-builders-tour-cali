@@ -2,9 +2,9 @@
 /**
  * Passport Agent Protocol — MCP server.
  * Gives any MCP client (Claude Code, Cursor, Claude Desktop…) a way to ask its
- * human for permission. The agent never holds funds or secrets: it signs a
- * request, the human approves on their phone with a passkey, the phone executes
- * on HSK Chain, and the agent gets the result.
+ * human for permission. The agent never holds funds, and gets a secret only when
+ * the human releases it: it signs a request, the human approves on their phone with
+ * a passkey, the phone executes on HSK Chain, and the agent gets the result.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -13,6 +13,7 @@ import { z } from "zod";
 import { addresses, ownerBalance, visa } from "./chain.js";
 import { createIdentity, identityPath, loadIdentity, saveIdentity, type Identity } from "./identity.js";
 import { call, explorerTx, openBrowser, sign, waitFor, type PairState, type RequestState } from "./relay.js";
+import { awaitReveal, ExpiredError, listSecrets, RejectedError, requestReveal, writeSecretFile } from "./secrets.js";
 
 const WAIT_MS = Number(process.env.PAP_WAIT_MS ?? 90_000);
 
@@ -131,14 +132,21 @@ server.registerTool(
   "pap_wait",
   {
     title: "Keep waiting for a pending approval",
-    description: "Continue waiting for a pairing or transfer request that was still pending. Returns as soon as the human resolves it (or after ~90s).",
+    description:
+      "Continue waiting for a pairing, transfer or secret request that was still pending. Returns as soon as the human resolves it (or after ~90s). For kind='secret' also pass name (and deliver, as in pap_secret).",
     inputSchema: {
-      kind: z.enum(["pair", "request"]),
+      kind: z.enum(["pair", "request", "secret"]),
       id: z.string(),
+      name: z.string().optional().describe("Secret name (kind='secret' only)"),
+      deliver: z.enum(["file", "inline"]).optional(),
     },
   },
-  async ({ kind, id: rid }) => {
+  async ({ kind, id: rid, name, deliver }) => {
     let id = requireIdentity();
+    if (kind === "secret") {
+      if (!name) throw new Error("name is required for kind='secret'");
+      return revealResult(id, rid, name, deliver ?? "file");
+    }
     if (kind === "pair") {
       const st = await waitFor<PairState>(id, `/api/pair/${rid}`, WAIT_MS);
       if (st?.status === "approved") {
@@ -202,6 +210,82 @@ ${body}`);
     return text(`ACCESS DENIED ${res.status}: ${body}`);
   }
 );
+
+
+server.registerTool(
+  "pap_secret",
+  {
+    title: "Read a sealed secret (needs human approval)",
+    description: [
+      "Get an API key, token or credential your human sealed for this agent (e.g. 'openai', 'stripe'). Nothing is released without their Face ID:",
+      "you sign the request, they see your `reason` on their phone, approve, and only then the value is decrypted with your identity key.",
+      "Rules: (1) give a concrete reason tied to the user's task — it is what the human reads; (2) NEVER print, log, echo, commit or write the value",
+      "anywhere except the file this tool returns (default deliver='file' keeps it out of the conversation: read it from the file / use it via env);",
+      "(3) if the human rejects, stop and tell the user — do not retry or look for the value elsewhere.",
+      "Prefer pap_call_gate when a gated service exists (then you never need the raw key). See pap_secrets_list for available names.",
+      "If the secret doesn't exist, ask the user to run `pap seal <name>` in THEIR terminal — never ask them to paste a secret into the chat.",
+    ].join(" "),
+    inputSchema: {
+      name: z.string().describe("Secret name, e.g. 'openai' (lowercase a-z 0-9 _ -)"),
+      reason: z.string().describe("Why you need it right now, in plain words, e.g. 'Run the integration tests that call the OpenAI API'"),
+      deliver: z
+        .enum(["file", "inline"])
+        .optional()
+        .describe("file (default): written to ~/.pap/secrets/<name> (0600), path returned. inline: value returned in the tool result."),
+    },
+  },
+  async ({ name, reason, deliver }) => {
+    const id = requireIdentity();
+    const { requestId, url, showUrl } = await requestReveal(id, name, reason);
+    openBrowser(showUrl);
+    return revealResult(id, requestId, name, deliver ?? "file", url, showUrl);
+  }
+);
+
+server.registerTool(
+  "pap_secrets_list",
+  {
+    title: "List sealed secrets",
+    description:
+      "List the secrets your human sealed for this agent (names, status, reads used / allowed, expiry). Values are never shown. To add one, the human runs `pap seal <name>` in their own terminal.",
+    inputSchema: {},
+  },
+  async () => {
+    const id = requireIdentity();
+    const list = await listSecrets(id);
+    if (!list.length) return text("No sealed secrets yet. Your human can add one with: pap seal <name>   (in their terminal, not in this chat)");
+    return text(
+      list
+        .map(
+          (s) =>
+            `${s.name}: ${s.status} · ${s.reads}/${s.maxReads} reads · expires ${new Date(Number(s.expiry) * 1000).toISOString()}` +
+            (s.lastReadAt ? ` · last read ${new Date(s.lastReadAt).toISOString()}` : "")
+        )
+        .join("\n")
+    );
+  }
+);
+
+async function revealResult(id: Identity, requestId: string, name: string, deliver: "file" | "inline", url?: string, showUrl?: string) {
+  try {
+    const value = await awaitReveal(id, requestId, name, WAIT_MS);
+    if (value === null)
+      return text(
+        `Waiting for your human to approve on their phone.${showUrl ? ` QR: ${showUrl}` : ""}${url ? `\nPhone link: ${url}` : ""}\n` +
+          `Call pap_wait with kind="secret" id="${requestId}" name="${name}" to keep waiting.`
+      );
+    if (deliver === "inline")
+      return text(`APPROVED. Secret "${name}" (do not print, log or commit it):\n${value}`);
+    const file = writeSecretFile(name, value);
+    return text(
+      `APPROVED. Secret "${name}" written to ${file} (mode 0600). Do NOT print it. Use it without echoing, e.g.\n` +
+        `  ${name.toUpperCase().replace(/-/g, "_")}_KEY="$(cat ${file})" your-command\nDelete the file when done: rm ${file}`
+    );
+  } catch (e) {
+    if (e instanceof RejectedError || e instanceof ExpiredError) return text(`${(e as Error).message}`);
+    throw e;
+  }
+}
 
 function describe(st: RequestState | undefined, requestId: string, url: string, showUrl: string) {
   if (!st) return `Could not reach the relay. Request ${requestId} at ${url}`;

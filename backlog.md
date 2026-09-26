@@ -28,8 +28,8 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 | PAP-02 | Relay: almacenamiento de secretos + request `reveal` | Secretos | PAP-01, PAP-03 | done |
 | PAP-03 | Tipos EIP-712 para solicitud y aprobación | Secretos | — | done |
 | PAP-04 | Teléfono: tarjeta de aprobación de secretos | Secretos / UX | PAP-02, PAP-15 | done |
-| PAP-05 | MCP: tool `pap_secret` | Secretos | PAP-02 | to do |
-| PAP-06 | CLI: `pap seal` y `pap secret get` | Secretos | PAP-02 | to do |
+| PAP-05 | MCP: tool `pap_secret` | Secretos | PAP-02 | done |
+| PAP-06 | CLI: `pap seal` y `pap secret get` | Secretos | PAP-02 | done |
 | PAP-07 | Visa y auditoría on-chain para secretos | Secretos | PAP-04 | to do |
 | PAP-08 | JSON-RPC 2.0: endpoint `/api/rpc` con namespace `pap_*` | JSON-RPC | PAP-02 | to do |
 | PAP-09 | Signer local EIP-1193 (`pap rpc`) | JSON-RPC | PAP-08 | to do |
@@ -206,7 +206,7 @@ Extender `web/src/app/approve/[id]/page.tsx` para `type: "reveal"`. La tarjeta m
 
 ### PAP-05 — MCP: tool `pap_secret`
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Secretos
 - **Depende de:** PAP-02
 
@@ -229,13 +229,18 @@ Nueva tool en `mcp/src/index.ts`: `pap_secret({name, reason})`. Firma EIP-712, c
 - Timeout → error de expiración.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- Tools nuevas en `mcp/src/index.ts`: `pap_secret({name, reason, deliver?})` y `pap_secrets_list()`; `pap_wait` acepta `kind: "secret"`. Lógica compartida con la CLI en `mcp/src/secrets.ts`.
+- **Mejora frente al plan:** por defecto (`deliver: "file"`) el valor se escribe en `~/.pap/secrets/<name>` (0600) y la tool devuelve solo la ruta: **el secreto no entra en la conversación del modelo**, lo que reduce filtraciones por prompt injection o transcripts. `deliver: "inline"` existe como opción explícita.
+- La descripción de la tool incluye las tres reglas de oro y dice que nunca se le pida al humano pegar un secreto en el chat.
+- No hay tool para sellar desde el MCP a propósito: sellar exige que el humano escriba el valor, y eso se hace en su terminal (`pap seal`).
+- Rechazo → mensaje "Do not retry"; `reason` < 10 caracteres se rechaza antes de llegar al teléfono.
+- Prueba: `mcp/scripts/secrets-e2e.mjs` con los bundles reales + teléfono simulado, **11 checks**.
 
 ---
 
 ### PAP-06 — CLI: `pap seal` y `pap secret get`
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Secretos
 - **Depende de:** PAP-02
 
@@ -256,7 +261,12 @@ Binario `pap` en `mcp/` (`bin` en `package.json`, mismo bundle). `pap seal <name
 - Rechazo → código 4.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `mcp/src/cli.ts` → bundle `mcp/dist/pap-cli.mjs` (commiteado, sin `node_modules`), `bin` en `package.json` (`pap`, `pap-mcp`). Uso sin instalar: `node mcp/dist/pap-cli.mjs …`.
+- Comandos: `pap status`, `pap seal <name> [--max-reads] [--days]` (valor por stdin o prompt oculto, nunca en el historial), `pap secret list`, `pap secret get <name> --reason … [--stdout]`, `pap secret exec <name> --reason … -- <cmd>` (inyecta `PAP_SECRET_<NAME>` solo en el proceso hijo).
+- Códigos de salida: 0 ok · 1 error · 4 rechazado · 5 expirado/timeout.
+- CI verifica que el bundle de la CLI coincide con el código fuente.
+- Probado en `secrets-e2e.mjs`: seal por stdin, exec con variable de entorno, rechazo con código 4, límite de lecturas.
+- Pendiente: publicar en npm para que `npx pap` funcione (hoy se usa la ruta del repo).
 
 ---
 
