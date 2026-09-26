@@ -7,12 +7,14 @@
  *   pap secret list
  *   pap secret get <name> --reason "..." [--stdout]  default: writes ~/.pap/secrets/<name> (0600)
  *   pap secret exec <name> --reason "..." -- <cmd…>  runs cmd with PAP_SECRET_<NAME> in its env only
+ *   pap rpc [--port 8545]                            local Ethereum JSON-RPC backed by PAP (cast, viem, ethers…)
  *
  * Exit codes: 0 ok · 1 error · 4 rejected by the human · 5 expired / timed out
  */
 import { spawn } from "node:child_process";
 import { loadIdentity, type Identity } from "./identity.js";
 import { openBrowser } from "./relay.js";
+import { startRpcServer, UPSTREAM } from "./rpc-server.js";
 import { awaitReveal, envName, ExpiredError, listSecrets, RejectedError, requestReveal, seal, writeSecretFile } from "./secrets.js";
 
 const WAIT_MS = Number(process.env.PAP_WAIT_MS ?? 5 * 60_000);
@@ -114,6 +116,18 @@ async function main() {
     return;
   }
 
+  if (cmd === "rpc") {
+    const port = Number(flag(args, "port") ?? 8545);
+    const id = identity();
+    await startRpcServer({ id, log: (l) => process.stderr.write(`[pap rpc] ${l}\n`) }, port);
+    process.stderr.write(
+      `pap rpc listening on http://127.0.0.1:${port} (HSK Chain, chainId 133)\n` +
+        `  account ${id.address} — reads go to ${UPSTREAM()}, transactions and secrets go through your phone\n` +
+        `  try: cast balance ${id.ownerAddress} --rpc-url http://127.0.0.1:${port}\n`
+    );
+    return;
+  }
+
   if (cmd === "secret") {
     const sub = args.shift();
     if (sub === "list") {
@@ -153,6 +167,7 @@ async function main() {
   pap secret list
   pap secret get <name> --reason "..." [--stdout]   ask your phone; writes ~/.pap/secrets/<name> unless --stdout
   pap secret exec <name> --reason "..." -- <cmd…>   run <cmd> with ${envName("<name>")} set only for it
+  pap rpc [--port 8545]                             local Ethereum JSON-RPC: point cast / viem / ethers at it
 
 Exit codes: 0 ok · 1 error · 4 rejected · 5 expired`);
   if (cmd && cmd !== "help" && cmd !== "--help") process.exit(1);

@@ -54,3 +54,31 @@ curl -s https://pap.devcristobalvc.com/api/rpc -H 'content-type: application/jso
 ```
 
 Tests: `mcp/scripts/rpc-test.ts` (conformance + parity with REST).
+
+## Local signer (`pap rpc`)
+
+```bash
+node mcp/dist/pap-cli.mjs rpc --port 8545     # uses the agent identity in ~/.pap/agent.json
+cast balance 0xYourPhoneWallet --rpc-url http://127.0.0.1:8545
+cast send 0xdD8FB4B51aa492b9E0Ae5AD10de65B146797Cd84 "transfer(address,uint256)" 0xMaria 5000000 \
+  --rpc-url http://127.0.0.1:8545 --unlocked --from 0xYourAgent
+```
+
+viem: `createWalletClient({ account: agentAddress, transport: http("http://127.0.0.1:8545") })` — ethers: `new JsonRpcProvider("http://127.0.0.1:8545").getSigner()` — web3.py: `Web3(HTTPProvider("http://127.0.0.1:8545"))`.
+
+| Method | Behaviour |
+|---|---|
+| reads (`eth_chainId`, `eth_call`, `eth_getBalance`, `eth_getLogs`, receipts, blocks, `eth_sendRawTransaction`…) | forwarded to HSK Chain (`PAP_RPC_URL`, default `https://testnet.hsk.xyz`) |
+| `eth_accounts` / `eth_requestAccounts` | `[agentAddress]` — an identity key, it holds no funds |
+| `eth_sendTransaction` — ERC-20 `transfer(to, amount)` | a PAP payment from the **human's** wallet: the agent pays alone via `AgentPassport.pay` if its visa covers it and it has gas; otherwise the phone approves (Face ID). Returns the tx hash; rejection → `4001` |
+| `eth_sendTransaction` — to `AgentPassport` (`pay`, `record`) | signed by the agent; the contract enforces the visa |
+| `eth_sendTransaction` — anything else | refused with `4200`, **never signed** |
+| `eth_estimateGas` | answered locally for brokered transfers (the agent holds no tokens, so HSK would revert); forwarded otherwise |
+| `personal_sign`, `eth_sign`, `eth_signTypedData_v4` | signed by the agent identity (other `from` → `4100`) |
+| `eth_getEncryptionPublicKey` | the agent's compressed secp256k1 key (what secrets are sealed to) |
+| `eth_decrypt("pap:secret:<name>")` or `{"pap":"secret","name","reason"}` | the sealed-secret flow: phone approval → plaintext. MetaMask's `x25519-xsalsa20-poly1305` blobs are refused (`4200`) — PAP secrets use layered ECIES, see `pap-core.ts` |
+| `wallet_getCapabilities` | `{ "0x85": { pap: { secrets, visas, gate } } }` |
+| `wallet_grantPermissions` (EIP-7715 subset) | one `erc20-token-allowance` permission → reports the on-chain visa; granting stays on the phone (the agent can only ask) |
+| `wallet_sendCalls` / `wallet_getCallsStatus` (EIP-5792) | each transfer follows the `eth_sendTransaction` rules in order (one approval per call); `atomicRequired: true` → `5760` |
+
+Listens on `127.0.0.1` only. Tests: `mcp/scripts/rpc-signer-test.mjs` (viem + fake HSK node + headless phone, 20 checks).

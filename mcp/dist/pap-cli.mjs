@@ -2324,7 +2324,7 @@ function weierstrass2(curveDef) {
   function normalizeS(s) {
     return isBiggerThanHalfOrder(s) ? modN2(-s) : s;
   }
-  const slcNum = (b, from15, to) => bytesToNumberBE2(b.slice(from15, to));
+  const slcNum = (b, from16, to) => bytesToNumberBE2(b.slice(from16, to));
   class Signature {
     constructor(r, s, recovery) {
       aInRange2("r", r, _1n8, CURVE_ORDER);
@@ -3747,7 +3747,56 @@ function formatEther(wei, unit = "wei") {
 function formatGwei(wei, unit = "wei") {
   return format(wei, exponents.gwei - exponents[unit]);
 }
-var exponents, InvalidDecimalsError;
+function from(value, decimals = 0) {
+  if (!Number.isInteger(decimals) || decimals < 0)
+    throw new InvalidDecimalsError({ decimals });
+  if (!/^-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$/.test(value))
+    throw new InvalidDecimalNumberError({ value });
+  let [integer = "", fraction = "0"] = value.split(".");
+  const negative = integer.startsWith("-");
+  if (negative)
+    integer = integer.slice(1);
+  if (integer === "")
+    integer = "0";
+  fraction = fraction.replace(/(0+)$/, "");
+  if (decimals === 0) {
+    if (fraction.length > 0 && Number.parseInt(fraction[0], 10) >= 5)
+      integer = `${BigInt(integer) + 1n}`;
+    fraction = "";
+  } else if (fraction.length > decimals) {
+    const left = fraction.slice(0, decimals);
+    const roundDigit = Number.parseInt(fraction.slice(decimals, decimals + 1), 10);
+    if (roundDigit >= 5) {
+      const carried = carry(left);
+      if (carried.length > decimals) {
+        fraction = carried.slice(1);
+        integer = `${BigInt(integer) + 1n}`;
+      } else {
+        fraction = carried;
+      }
+    } else {
+      fraction = left;
+    }
+  } else {
+    fraction = fraction.padEnd(decimals, "0");
+  }
+  return BigInt(`${negative ? "-" : ""}${integer}${fraction}`);
+}
+function carry(digits) {
+  const out = digits.split("");
+  let i = out.length - 1;
+  while (i >= 0) {
+    const d = Number.parseInt(out[i], 10) + 1;
+    if (d < 10) {
+      out[i] = String(d);
+      return out.join("");
+    }
+    out[i] = "0";
+    i--;
+  }
+  return `1${out.join("")}`;
+}
+var exponents, InvalidDecimalNumberError, InvalidDecimalsError;
 var init_Value = __esm({
   "node_modules/viem/_esm/utils/unit/Value.js"() {
     exponents = {
@@ -3756,6 +3805,17 @@ var init_Value = __esm({
       szabo: 12,
       finney: 15,
       ether: 18
+    };
+    InvalidDecimalNumberError = class extends Error {
+      constructor({ value }) {
+        super(`Value \`${value}\` is not a valid decimal number.`);
+        Object.defineProperty(this, "name", {
+          enumerable: true,
+          configurable: true,
+          writable: true,
+          value: "Value.InvalidDecimalNumberError"
+        });
+      }
     };
     InvalidDecimalsError = class extends Error {
       constructor({ decimals }) {
@@ -4040,7 +4100,7 @@ var init_number = __esm({
 });
 
 // node_modules/viem/_esm/errors/chain.js
-var ChainDoesNotSupportContract, ClientChainNotConfiguredError, InvalidChainIdError;
+var ChainDoesNotSupportContract, ChainMismatchError, ChainNotFoundError, ClientChainNotConfiguredError, InvalidChainIdError;
 var init_chain = __esm({
   "node_modules/viem/_esm/errors/chain.js"() {
     init_base();
@@ -4056,6 +4116,27 @@ var init_chain = __esm({
             ]
           ],
           name: "ChainDoesNotSupportContract"
+        });
+      }
+    };
+    ChainMismatchError = class extends BaseError {
+      constructor({ chain, currentChainId }) {
+        super(`The current chain of the wallet (id: ${currentChainId}) does not match the target chain for the transaction (id: ${chain.id} \u2013 ${chain.name}).`, {
+          metaMessages: [
+            `Current Chain ID:  ${currentChainId}`,
+            `Expected Chain ID: ${chain.id} \u2013 ${chain.name}`
+          ],
+          name: "ChainMismatchError"
+        });
+      }
+    };
+    ChainNotFoundError = class extends BaseError {
+      constructor() {
+        super([
+          "No chain was provided to the request.",
+          "Please provide a chain with the `chain` argument on the Action, or by supplying a `chain` to WalletClient."
+        ].join("\n"), {
+          name: "ChainNotFoundError"
         });
       }
     };
@@ -8196,7 +8277,7 @@ function assert(value) {
   if (value.BYTES_PER_ELEMENT !== 1 || value.constructor.name !== "Uint8Array")
     throw new InvalidBytesTypeError(value);
 }
-function from(value) {
+function from2(value) {
   if (value instanceof Uint8Array)
     return value;
   if (typeof value === "string")
@@ -8390,7 +8471,7 @@ function assert2(value, options = {}) {
 function concat2(...values) {
   return `0x${values.reduce((acc, x) => acc + x.replace("0x", ""), "")}`;
 }
-function from2(value) {
+function from3(value) {
   if (value instanceof Uint8Array)
     return fromBytes(value);
   if (Array.isArray(value))
@@ -12660,6 +12741,32 @@ init_isAddress();
 init_size();
 init_toHex();
 init_regex();
+init_stringify();
+function serializeTypedData(parameters) {
+  const { domain: domain_, message: message_, primaryType, types } = parameters;
+  const normalizeData = (struct, data_) => {
+    const data = { ...data_ };
+    for (const param of struct) {
+      const { name, type } = param;
+      if (type === "address")
+        data[name] = data[name].toLowerCase();
+    }
+    return data;
+  };
+  const domain = (() => {
+    if (!types.EIP712Domain)
+      return {};
+    if (!domain_)
+      return {};
+    return normalizeData(types.EIP712Domain, domain_);
+  })();
+  const message = (() => {
+    if (primaryType === "EIP712Domain")
+      return void 0;
+    return normalizeData(types[primaryType], message_);
+  })();
+  return stringify({ domain, message, primaryType, types });
+}
 function validateTypedData(parameters) {
   const { domain, message, primaryType, types } = parameters;
   const validateData = (struct, data) => {
@@ -12937,9 +13044,11 @@ function openBrowser(url) {
   });
 }
 
-// src/secrets.ts
-import { chmodSync, mkdirSync as mkdirSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { join as join2 } from "node:path";
+// src/rpc-server.ts
+import { createServer } from "node:http";
+
+// node_modules/viem/_esm/index.js
+init_exports();
 
 // node_modules/viem/_esm/utils/getAction.js
 function getAction(client, actionFn, name) {
@@ -13709,14 +13818,14 @@ async function prepareTransactionRequest(client, args) {
     return false;
   })();
   const fillResult = attemptFill ? await getAction(client, fillTransaction, "fillTransaction")({ ...request, nonce: nonce2 }).then((result) => {
-    const { chainId: chainId2, from: from15, gas: gas2, gasPrice, nonce: nonce3, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, type: type2, ...rest } = result.transaction;
+    const { chainId: chainId2, from: from16, gas: gas2, gasPrice, nonce: nonce3, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, type: type2, ...rest } = result.transaction;
     const feeToken = "feeToken" in rest ? rest.feeToken : void 0;
     const hasFilledFeePayerSignature = "feePayerSignature" in rest && rest.feePayerSignature !== null && typeof rest.feePayerSignature !== "undefined";
     const shouldUseFilledFeeToken = typeof feeToken !== "undefined" && feeToken !== null && (!("feeToken" in request) || hasFilledFeePayerSignature);
     supportsFillTransaction.set(client.uid, true);
     return {
       ...request,
-      ...from15 ? { from: from15 } : {},
+      ...from16 ? { from: from16 } : {},
       ...type2 && !request.type ? { type: type2 } : {},
       ...typeof chainId2 !== "undefined" ? { chainId: chainId2 } : {},
       ...typeof gas2 !== "undefined" ? { gas: gas2 } : {},
@@ -13744,11 +13853,11 @@ async function prepareTransactionRequest(client, args) {
     });
     if (executionReverted)
       throw e;
-    const unsupported = error.walk?.((e2) => {
+    const unsupported2 = error.walk?.((e2) => {
       const error2 = e2;
       return error2.name === "MethodNotFoundRpcError" || error2.name === "MethodNotSupportedRpcError" || error2.message?.includes("eth_fillTransaction is not available");
     });
-    if (unsupported)
+    if (unsupported2)
       supportsFillTransaction.set(client.uid, false);
     return request;
   }) : request;
@@ -14684,6 +14793,9 @@ function watchContractEvent(client, parameters) {
   return enablePolling ? pollContractEvent() : subscribeContractEvent();
 }
 
+// node_modules/viem/_esm/actions/wallet/writeContract.js
+init_parseAccount();
+
 // node_modules/viem/_esm/errors/account.js
 init_base();
 var AccountNotFoundError = class extends BaseError {
@@ -14698,6 +14810,38 @@ var AccountNotFoundError = class extends BaseError {
     });
   }
 };
+var AccountTypeNotSupportedError = class extends BaseError {
+  constructor({ docsPath: docsPath8, metaMessages, type }) {
+    super(`Account type "${type}" is not supported.`, {
+      docsPath: docsPath8,
+      metaMessages,
+      name: "AccountTypeNotSupportedError"
+    });
+  }
+};
+
+// node_modules/viem/_esm/actions/wallet/writeContract.js
+init_encodeFunctionData();
+
+// node_modules/viem/_esm/actions/wallet/sendTransaction.js
+init_parseAccount();
+init_base();
+
+// node_modules/viem/_esm/utils/chain/assertCurrentChain.js
+init_chain();
+function assertCurrentChain({ chain, currentChainId }) {
+  if (!chain)
+    throw new ChainNotFoundError();
+  if (currentChainId !== chain.id)
+    throw new ChainMismatchError({ chain, currentChainId });
+}
+
+// node_modules/viem/_esm/actions/wallet/sendTransaction.js
+init_concat();
+init_extract();
+init_transactionRequest();
+init_lru();
+init_assertRequest();
 
 // node_modules/viem/_esm/actions/wallet/sendRawTransaction.js
 async function sendRawTransaction(client, { serializedTransaction }) {
@@ -14706,6 +14850,235 @@ async function sendRawTransaction(client, { serializedTransaction }) {
     params: [serializedTransaction]
   }, { retryCount: 0 });
 }
+
+// node_modules/viem/_esm/actions/wallet/sendTransaction.js
+var supportsWalletNamespace = new LruMap(128);
+async function sendTransaction(client, parameters) {
+  const { account: account_ = client.account, assertChainId = true, chain = client.chain, accessList, authorizationList, blobs, data, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, type, value, ...rest } = parameters;
+  if (typeof account_ === "undefined")
+    throw new AccountNotFoundError({
+      docsPath: "/docs/actions/wallet/sendTransaction"
+    });
+  const account2 = account_ ? parseAccount(account_) : null;
+  let nonceManagerParameters;
+  try {
+    assertRequest(parameters);
+    const to = await (async () => {
+      if (parameters.to)
+        return parameters.to;
+      if (parameters.to === null)
+        return void 0;
+      if (authorizationList && authorizationList.length > 0)
+        return await recoverAuthorizationAddress({
+          authorization: authorizationList[0]
+        }).catch(() => {
+          throw new BaseError("`to` is required. Could not infer from `authorizationList`.");
+        });
+      return void 0;
+    })();
+    if (account2?.type === "json-rpc" || account2 === null) {
+      let chainId;
+      if (chain !== null) {
+        chainId = await getAction(client, getChainId, "getChainId")({});
+        if (assertChainId)
+          assertCurrentChain({
+            currentChainId: chainId,
+            chain
+          });
+      }
+      const chainFormat = client.chain?.formatters?.transactionRequest?.format;
+      const format2 = chainFormat || formatTransactionRequest;
+      const request = format2({
+        // Pick out extra data that might exist on the chain's transaction request type.
+        ...extract(rest, { format: chainFormat }),
+        accessList,
+        account: account2,
+        authorizationList,
+        blobs,
+        chainId,
+        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
+        gas,
+        gasPrice,
+        maxFeePerBlobGas,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        nonce: nonce2,
+        to,
+        type,
+        value
+      }, "sendTransaction");
+      const isWalletNamespaceSupported = supportsWalletNamespace.get(client.uid);
+      const method = isWalletNamespaceSupported ? "wallet_sendTransaction" : "eth_sendTransaction";
+      try {
+        return await client.request({
+          method,
+          params: [request]
+        }, { retryCount: 0 });
+      } catch (e) {
+        if (isWalletNamespaceSupported === false)
+          throw e;
+        const error = e;
+        if (error.name === "InvalidInputRpcError" || error.name === "InvalidParamsRpcError" || error.name === "MethodNotFoundRpcError" || error.name === "MethodNotSupportedRpcError") {
+          return await client.request({
+            method: "wallet_sendTransaction",
+            params: [request]
+          }, { retryCount: 0 }).then((hash3) => {
+            supportsWalletNamespace.set(client.uid, true);
+            return hash3;
+          }).catch((e2) => {
+            const walletNamespaceError = e2;
+            if (walletNamespaceError.name === "MethodNotFoundRpcError" || walletNamespaceError.name === "MethodNotSupportedRpcError") {
+              supportsWalletNamespace.set(client.uid, false);
+              throw error;
+            }
+            throw walletNamespaceError;
+          });
+        }
+        throw error;
+      }
+    }
+    if (account2?.type === "local") {
+      const nonceManager = (() => {
+        if (!account2.nonceManager || typeof nonce2 !== "undefined")
+          return account2.nonceManager;
+        const nonceManager2 = account2.nonceManager;
+        return {
+          consume(parameters2) {
+            nonceManagerParameters = {
+              address: parameters2.address,
+              chainId: parameters2.chainId
+            };
+            return nonceManager2.consume(parameters2);
+          },
+          get(parameters2) {
+            return nonceManager2.get(parameters2);
+          },
+          increment(parameters2) {
+            return nonceManager2.increment(parameters2);
+          },
+          reset(parameters2) {
+            return nonceManager2.reset(parameters2);
+          }
+        };
+      })();
+      const request = await getAction(client, prepareTransactionRequest, "prepareTransactionRequest")({
+        account: account2,
+        accessList,
+        authorizationList,
+        blobs,
+        chain,
+        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
+        gas,
+        gasPrice,
+        maxFeePerBlobGas,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        nonce: nonce2,
+        nonceManager,
+        parameters: [...defaultParameters, "sidecars"],
+        type,
+        value,
+        ...rest,
+        to
+      });
+      const serializer = chain?.serializers?.transaction;
+      const signedTransaction = await account2.signTransaction(request, {
+        serializer
+      });
+      const transactionEnvelope = (chain ?? client.chain)?.serializers?.transactionEnvelope;
+      const serializedTransaction = transactionEnvelope ? await transactionEnvelope({
+        serializedTransaction: signedTransaction,
+        transaction: request
+      }) : signedTransaction;
+      return await getAction(client, sendRawTransaction, "sendRawTransaction")({
+        serializedTransaction
+      });
+    }
+    if (account2?.type === "smart")
+      throw new AccountTypeNotSupportedError({
+        metaMessages: [
+          "Consider using the `sendUserOperation` Action instead."
+        ],
+        docsPath: "/docs/actions/bundler/sendUserOperation",
+        type: "smart"
+      });
+    throw new AccountTypeNotSupportedError({
+      docsPath: "/docs/actions/wallet/sendTransaction",
+      type: account2?.type
+    });
+  } catch (err2) {
+    if (err2 instanceof AccountTypeNotSupportedError)
+      throw err2;
+    if (nonceManagerParameters)
+      account2?.nonceManager?.reset(nonceManagerParameters);
+    throw getTransactionError(err2, {
+      ...parameters,
+      account: account2,
+      chain: parameters.chain || void 0
+    });
+  }
+}
+
+// node_modules/viem/_esm/actions/wallet/writeContract.js
+async function writeContract(client, parameters) {
+  return writeContract.internal(client, sendTransaction, "sendTransaction", parameters);
+}
+(function(writeContract2) {
+  async function internal(client, actionFn, name, parameters) {
+    const { abi: abi2, account: account_ = client.account, address, args, functionName, ...request } = parameters;
+    if (typeof account_ === "undefined")
+      throw new AccountNotFoundError({
+        docsPath: "/docs/contract/writeContract"
+      });
+    const account2 = account_ ? parseAccount(account_) : null;
+    const data = encodeFunctionData({
+      abi: abi2,
+      args,
+      functionName
+    });
+    try {
+      return await getAction(client, actionFn, name)({
+        data,
+        to: address,
+        account: account2,
+        ...request
+      });
+    } catch (error) {
+      throw getContractError(error, {
+        abi: abi2,
+        address,
+        args,
+        docsPath: "/docs/contract/writeContract",
+        functionName,
+        sender: account2?.address
+      });
+    }
+  }
+  writeContract2.internal = internal;
+})(writeContract || (writeContract = {}));
+
+// node_modules/viem/_esm/actions/wallet/waitForCallsStatus.js
+init_base();
+
+// node_modules/viem/_esm/errors/calls.js
+init_base();
+var BundleFailedError = class extends BaseError {
+  constructor(result) {
+    super(`Call bundle failed with status: ${result.statusCode}`, {
+      name: "BundleFailedError"
+    });
+    Object.defineProperty(this, "result", {
+      enumerable: true,
+      configurable: true,
+      writable: true,
+      value: void 0
+    });
+    this.result = result;
+  }
+};
+
+// node_modules/viem/_esm/actions/wallet/waitForCallsStatus.js
+init_withResolvers();
 
 // node_modules/viem/_esm/utils/promise/withRetry.js
 init_utils4();
@@ -14749,6 +15122,14 @@ function withRetry(fn, { delay: delay_ = 100, retryCount = 2, shouldRetry: shoul
   });
 }
 
+// node_modules/viem/_esm/actions/wallet/waitForCallsStatus.js
+init_stringify();
+
+// node_modules/viem/_esm/actions/wallet/getCallsStatus.js
+init_slice();
+init_trim();
+init_fromHex();
+
 // node_modules/viem/_esm/utils/formatters/transactionReceipt.js
 init_fromHex();
 var receiptStatuses = {
@@ -14775,6 +15156,251 @@ function formatTransactionReceipt(transactionReceipt, _) {
     receipt.blobGasUsed = BigInt(transactionReceipt.blobGasUsed);
   return receipt;
 }
+
+// node_modules/viem/_esm/actions/wallet/sendCalls.js
+init_parseAccount();
+init_base();
+init_rpc();
+init_encodeFunctionData();
+init_concat();
+init_fromHex();
+init_toHex();
+var fallbackMagicIdentifier = "0x5792579257925792579257925792579257925792579257925792579257925792";
+var fallbackTransactionErrorMagicIdentifier = numberToHex(0, {
+  size: 32
+});
+async function sendCalls(client, parameters) {
+  const { account: account_ = client.account, chain = client.chain, experimental_fallback, experimental_fallbackDelay = 32, forceAtomic = false, id, version: version4 = "2.0.0" } = parameters;
+  const account2 = account_ ? parseAccount(account_) : null;
+  let capabilities2 = parameters.capabilities;
+  if (client.dataSuffix && !parameters.capabilities?.dataSuffix) {
+    if (typeof client.dataSuffix === "string")
+      capabilities2 = {
+        ...parameters.capabilities,
+        dataSuffix: { value: client.dataSuffix, optional: true }
+      };
+    else
+      capabilities2 = {
+        ...parameters.capabilities,
+        dataSuffix: {
+          value: client.dataSuffix.value,
+          ...client.dataSuffix.required ? {} : { optional: true }
+        }
+      };
+  }
+  const calls = parameters.calls.map((call_) => {
+    const call3 = call_;
+    const data = call3.abi ? encodeFunctionData({
+      abi: call3.abi,
+      functionName: call3.functionName,
+      args: call3.args
+    }) : call3.data;
+    return {
+      data: call3.dataSuffix && data ? concat([data, call3.dataSuffix]) : data,
+      to: call3.to,
+      value: call3.value ? numberToHex(call3.value) : void 0
+    };
+  });
+  try {
+    const response = await client.request({
+      method: "wallet_sendCalls",
+      params: [
+        {
+          atomicRequired: forceAtomic,
+          calls,
+          capabilities: capabilities2,
+          chainId: numberToHex(chain.id),
+          from: account2?.address,
+          id,
+          version: version4
+        }
+      ]
+    }, { retryCount: 0 });
+    if (typeof response === "string")
+      return { id: response };
+    return response;
+  } catch (err2) {
+    const error = err2;
+    if (experimental_fallback && (error.name === "MethodNotFoundRpcError" || error.name === "MethodNotSupportedRpcError" || error.name === "UnknownRpcError" || error.details.toLowerCase().includes("does not exist / is not available") || error.details.toLowerCase().includes("missing or invalid. request()") || error.details.toLowerCase().includes("did not match any variant of untagged enum") || error.details.toLowerCase().includes("account upgraded to unsupported contract") || error.details.toLowerCase().includes("eip-7702 not supported") || error.details.toLowerCase().includes("unsupported wc_ method") || // magic.link
+    error.details.toLowerCase().includes("feature toggled misconfigured") || // Trust Wallet
+    error.details.toLowerCase().includes("jsonrpcengine: response has no error or result for request"))) {
+      if (capabilities2) {
+        const hasNonOptionalCapability = Object.values(capabilities2).some((capability) => !capability.optional);
+        if (hasNonOptionalCapability) {
+          const message = "non-optional `capabilities` are not supported on fallback to `eth_sendTransaction`.";
+          throw new UnsupportedNonOptionalCapabilityError(new BaseError(message, {
+            details: message
+          }));
+        }
+      }
+      if (forceAtomic && calls.length > 1) {
+        const message = "`forceAtomic` is not supported on fallback to `eth_sendTransaction`.";
+        throw new AtomicityNotSupportedError(new BaseError(message, {
+          details: message
+        }));
+      }
+      const results = [];
+      for (const call3 of calls) {
+        try {
+          const value = await sendTransaction(client, {
+            account: account2,
+            chain,
+            data: call3.data,
+            to: call3.to,
+            value: call3.value ? hexToBigInt(call3.value) : void 0
+          });
+          results.push({ status: "fulfilled", value });
+        } catch (reason) {
+          results.push({ reason, status: "rejected" });
+        }
+        if (experimental_fallbackDelay > 0)
+          await new Promise((resolve) => setTimeout(resolve, experimental_fallbackDelay));
+      }
+      if (results.every((r) => r.status === "rejected"))
+        throw results[0].reason;
+      const hashes = results.map((result) => {
+        if (result.status === "fulfilled")
+          return result.value;
+        return fallbackTransactionErrorMagicIdentifier;
+      });
+      return {
+        id: concat([
+          ...hashes,
+          numberToHex(chain.id, { size: 32 }),
+          fallbackMagicIdentifier
+        ])
+      };
+    }
+    throw getTransactionError(err2, {
+      ...parameters,
+      account: account2,
+      chain: parameters.chain
+    });
+  }
+}
+
+// node_modules/viem/_esm/actions/wallet/getCallsStatus.js
+async function getCallsStatus(client, parameters) {
+  async function getStatus(id) {
+    const isTransactions = id.endsWith(fallbackMagicIdentifier.slice(2));
+    if (isTransactions) {
+      const chainId2 = trim(sliceHex(id, -64, -32));
+      const hashes = sliceHex(id, 0, -64).slice(2).match(/.{1,64}/g);
+      const receipts2 = await Promise.all(hashes.map((hash3) => fallbackTransactionErrorMagicIdentifier.slice(2) !== hash3 ? client.request({
+        method: "eth_getTransactionReceipt",
+        params: [`0x${hash3}`]
+      }, { dedupe: true }) : void 0));
+      const status2 = (() => {
+        if (receipts2.some((r) => r === null))
+          return 100;
+        if (receipts2.every((r) => r?.status === "0x1"))
+          return 200;
+        if (receipts2.every((r) => r?.status === "0x0"))
+          return 500;
+        return 600;
+      })();
+      return {
+        atomic: false,
+        chainId: hexToNumber2(chainId2),
+        receipts: receipts2.filter(Boolean),
+        status: status2,
+        version: "2.0.0"
+      };
+    }
+    return client.request({
+      method: "wallet_getCallsStatus",
+      params: [id]
+    });
+  }
+  const { atomic = false, chainId, receipts, version: version4 = "2.0.0", ...response } = await getStatus(parameters.id);
+  const [status, statusCode] = (() => {
+    const statusCode2 = response.status;
+    if (statusCode2 >= 100 && statusCode2 < 200)
+      return ["pending", statusCode2];
+    if (statusCode2 >= 200 && statusCode2 < 300)
+      return ["success", statusCode2];
+    if (statusCode2 >= 300 && statusCode2 < 700)
+      return ["failure", statusCode2];
+    if (statusCode2 === "CONFIRMED")
+      return ["success", 200];
+    if (statusCode2 === "PENDING")
+      return ["pending", 100];
+    return [void 0, statusCode2];
+  })();
+  return {
+    ...response,
+    atomic,
+    // @ts-expect-error: for backwards compatibility
+    chainId: chainId ? hexToNumber2(chainId) : void 0,
+    receipts: receipts?.map((receipt) => ({
+      ...receipt,
+      blockNumber: hexToBigInt(receipt.blockNumber),
+      gasUsed: hexToBigInt(receipt.gasUsed),
+      status: receiptStatuses[receipt.status]
+    })) ?? [],
+    statusCode,
+    status,
+    version: version4
+  };
+}
+
+// node_modules/viem/_esm/actions/wallet/waitForCallsStatus.js
+async function waitForCallsStatus(client, parameters) {
+  const {
+    id,
+    pollingInterval = client.pollingInterval,
+    status = ({ statusCode }) => statusCode === 200 || statusCode >= 300,
+    retryCount = 4,
+    retryDelay = ({ count }) => ~~(1 << count) * 200,
+    // exponential backoff
+    timeout = 6e4,
+    throwOnFailure = false
+  } = parameters;
+  const observerId = stringify(["waitForCallsStatus", client.uid, id]);
+  const { promise, resolve, reject } = withResolvers();
+  let timer;
+  const unobserve = observe(observerId, { resolve, reject }, (emit) => {
+    const unpoll = poll(async () => {
+      const done = (fn) => {
+        clearTimeout(timer);
+        unpoll();
+        fn();
+        unobserve();
+      };
+      try {
+        const result = await withRetry(async () => {
+          const result2 = await getAction(client, getCallsStatus, "getCallsStatus")({ id });
+          if (throwOnFailure && result2.status === "failure")
+            throw new BundleFailedError(result2);
+          return result2;
+        }, {
+          retryCount,
+          delay: retryDelay
+        });
+        if (!status(result))
+          return;
+        done(() => emit.resolve(result));
+      } catch (error) {
+        done(() => emit.reject(error));
+      }
+    }, {
+      interval: pollingInterval,
+      emitOnBegin: true
+    });
+    return unpoll;
+  });
+  timer = timeout ? setTimeout(() => {
+    unobserve();
+    clearTimeout(timer);
+    reject(new WaitForCallsStatusTimeoutError({ id }));
+  }, timeout) : void 0;
+  return await promise;
+}
+var WaitForCallsStatusTimeoutError = class extends BaseError {
+  constructor({ id }) {
+    super(`Timed out while waiting for call bundle with id "${id}" to be confirmed.`, { name: "WaitForCallsStatusTimeoutError" });
+  }
+};
 
 // node_modules/viem/_esm/clients/createClient.js
 init_parseAccount();
@@ -16273,7 +16899,7 @@ var SignatureErc8010_exports = {};
 __export(SignatureErc8010_exports, {
   InvalidWrappedSignatureError: () => InvalidWrappedSignatureError,
   assert: () => assert6,
-  from: () => from9,
+  from: () => from10,
   magicBytes: () => magicBytes,
   suffixParameters: () => suffixParameters,
   unwrap: () => unwrap,
@@ -16333,7 +16959,7 @@ init_Bytes();
 init_Hex();
 function keccak2562(value, options = {}) {
   const { as = typeof value === "string" ? "Hex" : "Bytes" } = options;
-  const bytes = keccak_256(from(value));
+  const bytes = keccak_256(from2(value));
   if (as === "Bytes")
     return bytes;
   return fromBytes(bytes);
@@ -16365,7 +16991,7 @@ function assert3(publicKey, options = {}) {
   }
   throw new InvalidError({ publicKey });
 }
-function from3(value) {
+function from4(value) {
   const publicKey = (() => {
     if (validate2(value))
       return fromHex2(value);
@@ -16480,7 +17106,7 @@ var InvalidSerializedSizeError = class extends BaseError3 {
     super(`Value \`${publicKey}\` is an invalid public key size.`, {
       metaMessages: [
         "Expected: 33 bytes (compressed + prefix), 64 bytes (uncompressed) or 65 bytes (uncompressed + prefix).",
-        `Received ${size3(from2(publicKey))} bytes.`
+        `Received ${size3(from3(publicKey))} bytes.`
       ]
     });
     Object.defineProperty(this, "name", {
@@ -16530,7 +17156,7 @@ function checksum2(address) {
   checksum.set(address, result);
   return result;
 }
-function from4(address, options = {}) {
+function from5(address, options = {}) {
   const { checksum: checksumVal = false } = options;
   assert4(address);
   if (checksumVal)
@@ -16539,7 +17165,7 @@ function from4(address, options = {}) {
 }
 function fromPublicKey(publicKey, options = {}) {
   const address = keccak2562(`0x${toHex2(publicKey).slice(4)}`).substring(26);
-  return from4(`0x${address}`, options);
+  return from5(`0x${address}`, options);
 }
 function validate3(address, options = {}) {
   const { strict = true } = options ?? {};
@@ -17406,7 +18032,7 @@ function encodePacked(types, values) {
   }
   encodePacked2.encode = encode4;
 })(encodePacked || (encodePacked = {}));
-function from5(parameters) {
+function from6(parameters) {
   if (Array.isArray(parameters) && typeof parameters[0] === "string")
     return parseAbiParameters(parameters);
   if (typeof parameters === "string")
@@ -17507,7 +18133,7 @@ init_Hex();
 init_Bytes();
 init_Errors();
 init_Hex();
-function from6(value, options) {
+function from7(value, options) {
   const { as } = options;
   const encodable = getEncodable2(value);
   const cursor = create(new Uint8Array(encodable.length));
@@ -17518,7 +18144,7 @@ function from6(value, options) {
 }
 function fromHex3(hex, options = {}) {
   const { as = "Hex" } = options;
-  return from6(hex, { as });
+  return from7(hex, { as });
 }
 function getEncodable2(bytes) {
   if (Array.isArray(bytes))
@@ -18743,7 +19369,7 @@ function weierstrass3(curveDef) {
   function normalizeS(s) {
     return isBiggerThanHalfOrder(s) ? modN2(-s) : s;
   }
-  const slcNum = (b, from15, to) => bytesToNumberBE3(b.slice(from15, to));
+  const slcNum = (b, from16, to) => bytesToNumberBE3(b.slice(from16, to));
   class Signature {
     constructor(r, s, recovery) {
       aInRange3("r", r, _1n14, CURVE_ORDER);
@@ -19139,9 +19765,9 @@ function extract2(value) {
     return void 0;
   if (typeof value.s === "undefined")
     return void 0;
-  return from7(value);
+  return from8(value);
 }
-function from7(signature) {
+function from8(signature) {
   const signature_ = (() => {
     if (typeof signature === "string")
       return fromHex4(signature);
@@ -19205,7 +19831,7 @@ var InvalidSerializedSizeError2 = class extends BaseError3 {
     super(`Value \`${signature}\` is an invalid signature size.`, {
       metaMessages: [
         "Expected: 64 bytes or 65 bytes.",
-        `Received ${size3(from2(signature))} bytes.`
+        `Received ${size3(from3(signature))} bytes.`
       ]
     });
     Object.defineProperty(this, "name", {
@@ -19273,7 +19899,7 @@ var InvalidVError = class extends BaseError3 {
 };
 
 // node_modules/ox/_esm/core/Authorization.js
-function from8(authorization, options = {}) {
+function from9(authorization, options = {}) {
   if (typeof authorization.chainId === "string")
     return fromRpc3(authorization);
   return { ...authorization, ...options.signature };
@@ -19324,14 +19950,14 @@ function recoverPublicKey2(options) {
   const { payload, signature } = options;
   const { r, s, yParity } = signature;
   const signature_ = new secp256k13.Signature(BigInt(r), BigInt(s)).addRecoveryBit(yParity);
-  const point = signature_.recoverPublicKey(from2(payload).substring(2));
-  return from3(point);
+  const point = signature_.recoverPublicKey(from3(payload).substring(2));
+  return from4(point);
 }
 var fromSeedDomain = fromString("ox.secp256k1.fromSeed.v1");
 
 // node_modules/ox/_esm/erc8010/SignatureErc8010.js
 var magicBytes = "0x8010801080108010801080108010801080108010801080108010801080108010";
-var suffixParameters = from5("(uint256 chainId, address delegation, uint256 nonce, uint8 yParity, uint256 r, uint256 s), address to, bytes data");
+var suffixParameters = from6("(uint256 chainId, address delegation, uint256 nonce, uint8 yParity, uint256 r, uint256 s), address to, bytes data");
 function assert6(value) {
   if (typeof value === "string") {
     if (slice3(value, -32) !== magicBytes)
@@ -19339,7 +19965,7 @@ function assert6(value) {
   } else
     assert5(value.authorization);
 }
-function from9(value) {
+function from10(value) {
   if (typeof value === "string")
     return unwrap(value);
   return value;
@@ -19350,7 +19976,7 @@ function unwrap(wrapped) {
   const suffix = slice3(wrapped, -suffixLength - 64, -64);
   const signature = slice3(wrapped, 0, -suffixLength - 64);
   const [auth, to, data] = decode(suffixParameters, suffix);
-  const authorization = from8({
+  const authorization = from9({
     address: auth.delegation,
     chainId: Number(auth.chainId),
     nonce: auth.nonce,
@@ -19369,7 +19995,7 @@ function wrap(value) {
   assert6(value);
   const self = recoverAddress2({
     payload: getSignPayload(value.authorization),
-    signature: from7(value.authorization)
+    signature: from8(value.authorization)
   });
   const suffix = encode2(suffixParameters, [
     {
@@ -19407,6 +20033,12 @@ var InvalidWrappedSignatureError = class extends BaseError3 {
 init_Value();
 function formatUnits(value, decimals) {
   return format(value, decimals);
+}
+
+// node_modules/viem/_esm/utils/unit/parseUnits.js
+init_Value();
+function parseUnits(value, decimals) {
+  return from(value, decimals);
 }
 
 // node_modules/viem/_esm/utils/formatters/proof.js
@@ -19926,7 +20558,7 @@ function getAmbiguousTypes2(sourceParameters, targetParameters, args) {
 }
 
 // node_modules/ox/_esm/core/AbiItem.js
-function from10(abiItem, options = {}) {
+function from11(abiItem, options = {}) {
   const { prepare = true } = options;
   const item = (() => {
     if (Array.isArray(abiItem))
@@ -20101,8 +20733,8 @@ function encode3(...parameters) {
   const { bytecode, args } = options;
   return concat2(bytecode, abiConstructor.inputs?.length && args?.length ? encode2(abiConstructor.inputs, args) : "0x");
 }
-function from11(abiConstructor) {
-  return from10(abiConstructor);
+function from12(abiConstructor) {
+  return from11(abiConstructor);
 }
 function fromAbi2(abi2) {
   const item = abi2.find((item2) => item2.type === "constructor");
@@ -20112,8 +20744,8 @@ function fromAbi2(abi2) {
 }
 
 // node_modules/ox/_esm/core/AbiEvent.js
-function from12(abiEvent, options = {}) {
-  return from10(abiEvent, options);
+function from13(abiEvent, options = {}) {
+  return from11(abiEvent, options);
 }
 function getSelector2(abiItem) {
   return getSignatureHash(abiItem);
@@ -20156,8 +20788,8 @@ function encodeData2(...parameters) {
   const data = args.length > 0 ? encode2(item.inputs, args) : void 0;
   return data ? concat2(selector, data) : selector;
 }
-function from13(abiFunction, options = {}) {
-  return from10(abiFunction, options);
+function from14(abiFunction, options = {}) {
+  return from11(abiFunction, options);
 }
 function fromAbi3(abi2, name, options) {
   const item = fromAbi(abi2, name, options);
@@ -20188,22 +20820,22 @@ var getBalanceCode = "0x6080604052348015600e575f80fd5b5061016d8061001c5f395ff3fe
 var staticCallCode = "0x608060405234801561000f575f5ffd5b5060043610610029575f3560e01c8063fd00430c1461002d575b5f5ffd5b6100476004803603810190610042919061012b565b610049565b005b80825f375f5f825f865afa610060573d5f5f3e3d5ffd5b3d5f5f3e3d5ff35b5f5ffd5b5f5ffd5b5f73ffffffffffffffffffffffffffffffffffffffff82169050919050565b5f61009982610070565b9050919050565b6100a98161008f565b81146100b3575f5ffd5b50565b5f813590506100c4816100a0565b92915050565b5f5ffd5b5f5ffd5b5f5ffd5b5f5f83601f8401126100eb576100ea6100ca565b5b8235905067ffffffffffffffff811115610108576101076100ce565b5b602083019150836001820283011115610124576101236100d2565b5b9250929050565b5f5f5f6040848603121561014257610141610068565b5b5f61014f868287016100b6565b935050602084013567ffffffffffffffff8111156101705761016f61006c565b5b61017c868287016100d6565b9250925050925092509256fea2646970667358221220635ed99185cacf3f2acba6921f23687c969cec2bbaf5f9ad599f507e6e105e6964736f6c63430008230033";
 var assetProbeGas = 1000000n;
 var staticCallAddressBase = 0x00000000000000000000000000000000deadbeefn;
-var transferEventSelector = getSelector2(from12("event Transfer(address indexed from, address indexed to, uint256 value)"));
-var balanceOfFunction = from13("function balanceOf(address) returns (uint256)");
-var decimalsFunction = from13("function decimals() returns (uint256)");
-var tokenUriFunction = from13("function tokenURI(uint256) returns (string)");
-var symbolFunction = from13("function symbol() returns (string)");
-var staticCallFunction = from13("function query(address target, bytes data)");
+var transferEventSelector = getSelector2(from13("event Transfer(address indexed from, address indexed to, uint256 value)"));
+var balanceOfFunction = from14("function balanceOf(address) returns (uint256)");
+var decimalsFunction = from14("function decimals() returns (uint256)");
+var tokenUriFunction = from14("function tokenURI(uint256) returns (string)");
+var symbolFunction = from14("function symbol() returns (string)");
+var staticCallFunction = from14("function query(address target, bytes data)");
 async function simulateCalls(client, parameters) {
   const { blockNumber, blockTag, calls, stateOverrides, traceAssetChanges, traceTransfers, validation } = parameters;
   const account2 = parameters.account ? parseAccount(parameters.account) : void 0;
   if (traceAssetChanges && !account2)
     throw new BaseError("`account` is required when `traceAssetChanges` is true");
-  const getBalanceData = account2 ? encode3(from11("constructor(bytes, bytes)"), {
+  const getBalanceData = account2 ? encode3(from12("constructor(bytes, bytes)"), {
     bytecode: deploylessCallViaBytecodeBytecode,
     args: [
       getBalanceCode,
-      encodeData2(from13("function getBalance(address)"), [account2.address])
+      encodeData2(from14("function getBalance(address)"), [account2.address])
     ]
   }) : void 0;
   const blockTag_ = blockTag ?? client.experimental_blockTag ?? "latest";
@@ -20438,7 +21070,7 @@ var SignatureErc6492_exports = {};
 __export(SignatureErc6492_exports, {
   InvalidWrappedSignatureError: () => InvalidWrappedSignatureError2,
   assert: () => assert7,
-  from: () => from14,
+  from: () => from15,
   magicBytes: () => magicBytes2,
   universalSignatureValidatorAbi: () => universalSignatureValidatorAbi,
   universalSignatureValidatorBytecode: () => universalSignatureValidatorBytecode,
@@ -20498,19 +21130,19 @@ function assert7(wrapped) {
   if (slice3(wrapped, -32) !== magicBytes2)
     throw new InvalidWrappedSignatureError2(wrapped);
 }
-function from14(wrapped) {
+function from15(wrapped) {
   if (typeof wrapped === "string")
     return unwrap2(wrapped);
   return wrapped;
 }
 function unwrap2(wrapped) {
   assert7(wrapped);
-  const [to, data, signature] = decode(from5("address, bytes, bytes"), wrapped);
+  const [to, data, signature] = decode(from6("address, bytes, bytes"), wrapped);
   return { data, signature, to };
 }
 function wrap2(value) {
   const { data, signature, to } = value;
-  return concat2(encode2(from5("address, bytes, bytes"), [
+  return concat2(encode2(from6("address, bytes, bytes"), [
     to,
     data,
     signature
@@ -20943,7 +21575,7 @@ async function waitForTransactionReceipt(client, parameters) {
                 shouldRetry: ({ error }) => error instanceof BlockNotFoundError
               });
               retrying = false;
-              const replacementTransaction = block.transactions.find(({ from: from15, nonce: nonce2 }) => from15 === replacedTransaction.from && nonce2 === replacedTransaction.nonce);
+              const replacementTransaction = block.transactions.find(({ from: from16, nonce: nonce2 }) => from16 === replacedTransaction.from && nonce2 === replacedTransaction.nonce);
               if (!replacementTransaction)
                 return;
               receipt = await getAction(client, getTransactionReceipt, "getTransactionReceipt")({
@@ -21492,12 +22124,31 @@ async function verifySiweMessage(client, parameters) {
   });
 }
 
+// node_modules/viem/_esm/actions/token/approve.js
+init_abis();
+
 // node_modules/viem/_esm/actions/token/internal.js
 init_abis();
 init_isAddress();
 init_isAddressEqual();
 function toAmount(amount, decimals) {
   return { amount, decimals, formatted: formatUnits(amount, decimals) };
+}
+function toBaseUnits(amount, decimals) {
+  if (typeof amount === "bigint")
+    return amount;
+  const resolved = amount.decimals ?? decimals;
+  return parseUnits(amount.formatted, requireTokenDecimals(resolved));
+}
+function requireTokenDecimals(decimals) {
+  if (decimals === void 0)
+    throw new Error("Token decimals are required. Pass `amount.decimals` or select a declared token.");
+  return decimals;
+}
+function resolveAmountDecimals(amount, decimals) {
+  if (typeof amount === "bigint")
+    return decimals;
+  return amount.decimals ?? decimals;
 }
 function resolveToken(client, parameters) {
   const { decimals, token } = parameters;
@@ -21575,6 +22226,10 @@ async function resolveTokenWithDecimals(client, parameters) {
     })
   };
 }
+function pickWriteParameters(parameters) {
+  const { account: account2, chain, gas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2 } = parameters;
+  return { account: account2, chain, gas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2 };
+}
 function defineCall(call3) {
   return {
     ...call3,
@@ -21582,6 +22237,70 @@ function defineCall(call3) {
     to: call3.address
   };
 }
+
+// node_modules/viem/_esm/actions/token/approve.js
+async function approve(client, parameters) {
+  return approve.inner(writeContract, client, parameters);
+}
+(function(approve2) {
+  async function inner(action, client, parameters) {
+    return await action(client, {
+      ...parameters,
+      ...approve2.call(client, parameters)
+    });
+  }
+  approve2.inner = inner;
+  function call3(client, parameters) {
+    return defineCall(getCall(client, parameters));
+  }
+  approve2.call = call3;
+  async function estimateGas2(client, parameters) {
+    return estimateContractGas(client, {
+      ...pickWriteParameters(parameters),
+      ...approve2.call(client, parameters)
+    });
+  }
+  approve2.estimateGas = estimateGas2;
+  async function simulate(client, parameters) {
+    return simulateContract(client, {
+      ...pickWriteParameters(parameters),
+      ...approve2.call(client, parameters)
+    });
+  }
+  approve2.simulate = simulate;
+  function extractEvent(logs) {
+    const [log] = parseEventLogs({
+      abi: erc20Abi,
+      logs,
+      eventName: "Approval",
+      strict: true
+    });
+    if (!log)
+      throw new Error("`Approval` event not found.");
+    return log;
+  }
+  approve2.extractEvent = extractEvent;
+})(approve || (approve = {}));
+function getCall(client, parameters) {
+  const { amount, spender, token } = parameters;
+  const { address, decimals } = resolveToken(client, { token });
+  return {
+    abi: erc20Abi,
+    address,
+    args: [spender, toBaseUnits(amount, decimals)],
+    functionName: "approve"
+  };
+}
+
+// node_modules/viem/_esm/actions/wallet/sendTransactionSync.js
+init_parseAccount();
+init_base();
+init_transaction();
+init_concat();
+init_extract();
+init_transactionRequest();
+init_lru();
+init_assertRequest();
 
 // node_modules/viem/_esm/actions/wallet/sendRawTransactionSync.js
 init_transaction();
@@ -21595,6 +22314,210 @@ async function sendRawTransactionSync(client, { serializedTransaction, throwOnRe
   if (formatted.status === "reverted" && throwOnReceiptRevert)
     throw new TransactionReceiptRevertedError({ receipt: formatted });
   return formatted;
+}
+
+// node_modules/viem/_esm/actions/wallet/sendTransactionSync.js
+var supportsWalletNamespace2 = new LruMap(128);
+async function sendTransactionSync(client, parameters) {
+  const { account: account_ = client.account, assertChainId = true, chain = client.chain, accessList, authorizationList, blobs, data, dataSuffix = typeof client.dataSuffix === "string" ? client.dataSuffix : client.dataSuffix?.value, gas, gasPrice, maxFeePerBlobGas, maxFeePerGas, maxPriorityFeePerGas, nonce: nonce2, pollingInterval, throwOnReceiptRevert, type, value, ...rest } = parameters;
+  const timeout = parameters.timeout ?? Math.max((chain?.blockTime ?? 0) * 3, 5e3);
+  if (typeof account_ === "undefined")
+    throw new AccountNotFoundError({
+      docsPath: "/docs/actions/wallet/sendTransactionSync"
+    });
+  const account2 = account_ ? parseAccount(account_) : null;
+  let nonceManagerParameters;
+  try {
+    assertRequest(parameters);
+    const to = await (async () => {
+      if (parameters.to)
+        return parameters.to;
+      if (parameters.to === null)
+        return void 0;
+      if (authorizationList && authorizationList.length > 0)
+        return await recoverAuthorizationAddress({
+          authorization: authorizationList[0]
+        }).catch(() => {
+          throw new BaseError("`to` is required. Could not infer from `authorizationList`.");
+        });
+      return void 0;
+    })();
+    if (account2?.type === "json-rpc" || account2 === null) {
+      let chainId;
+      if (chain !== null) {
+        chainId = await getAction(client, getChainId, "getChainId")({});
+        if (assertChainId)
+          assertCurrentChain({
+            currentChainId: chainId,
+            chain
+          });
+      }
+      const chainFormat = client.chain?.formatters?.transactionRequest?.format;
+      const format2 = chainFormat || formatTransactionRequest;
+      const request = format2({
+        // Pick out extra data that might exist on the chain's transaction request type.
+        ...extract(rest, { format: chainFormat }),
+        accessList,
+        account: account2,
+        authorizationList,
+        blobs,
+        chainId,
+        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
+        gas,
+        gasPrice,
+        maxFeePerBlobGas,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        nonce: nonce2,
+        to,
+        type,
+        value
+      }, "sendTransaction");
+      const isWalletNamespaceSupported = supportsWalletNamespace2.get(client.uid);
+      const method = isWalletNamespaceSupported ? "wallet_sendTransaction" : "eth_sendTransaction";
+      const hash3 = await (async () => {
+        try {
+          return await client.request({
+            method,
+            params: [request]
+          }, { retryCount: 0 });
+        } catch (e) {
+          if (isWalletNamespaceSupported === false)
+            throw e;
+          const error = e;
+          if (error.name === "InvalidInputRpcError" || error.name === "InvalidParamsRpcError" || error.name === "MethodNotFoundRpcError" || error.name === "MethodNotSupportedRpcError") {
+            return await client.request({
+              method: "wallet_sendTransaction",
+              params: [request]
+            }, { retryCount: 0 }).then((hash4) => {
+              supportsWalletNamespace2.set(client.uid, true);
+              return hash4;
+            }).catch((e2) => {
+              const walletNamespaceError = e2;
+              if (walletNamespaceError.name === "MethodNotFoundRpcError" || walletNamespaceError.name === "MethodNotSupportedRpcError") {
+                supportsWalletNamespace2.set(client.uid, false);
+                throw error;
+              }
+              throw walletNamespaceError;
+            });
+          }
+          throw error;
+        }
+      })();
+      const receipt = await getAction(client, waitForTransactionReceipt, "waitForTransactionReceipt")({
+        checkReplacement: false,
+        hash: hash3,
+        pollingInterval,
+        timeout
+      });
+      if (throwOnReceiptRevert && receipt.status === "reverted")
+        throw new TransactionReceiptRevertedError({ receipt });
+      return receipt;
+    }
+    if (account2?.type === "local") {
+      const nonceManager = (() => {
+        if (!account2.nonceManager || typeof nonce2 !== "undefined")
+          return account2.nonceManager;
+        const nonceManager2 = account2.nonceManager;
+        return {
+          consume(parameters2) {
+            nonceManagerParameters = {
+              address: parameters2.address,
+              chainId: parameters2.chainId
+            };
+            return nonceManager2.consume(parameters2);
+          },
+          get(parameters2) {
+            return nonceManager2.get(parameters2);
+          },
+          increment(parameters2) {
+            return nonceManager2.increment(parameters2);
+          },
+          reset(parameters2) {
+            return nonceManager2.reset(parameters2);
+          }
+        };
+      })();
+      const request = await getAction(client, prepareTransactionRequest, "prepareTransactionRequest")({
+        account: account2,
+        accessList,
+        authorizationList,
+        blobs,
+        chain,
+        data: dataSuffix ? concat([data ?? "0x", dataSuffix]) : data,
+        gas,
+        gasPrice,
+        maxFeePerBlobGas,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        nonce: nonce2,
+        nonceManager,
+        parameters: [...defaultParameters, "sidecars"],
+        type,
+        value,
+        ...rest,
+        to
+      });
+      const serializer = chain?.serializers?.transaction;
+      const signedTransaction = await account2.signTransaction(request, {
+        serializer
+      });
+      const transactionEnvelope = (chain ?? client.chain)?.serializers?.transactionEnvelope;
+      const serializedTransaction = transactionEnvelope ? await transactionEnvelope({
+        serializedTransaction: signedTransaction,
+        transaction: request
+      }) : signedTransaction;
+      return await getAction(client, sendRawTransactionSync, "sendRawTransactionSync")({
+        serializedTransaction,
+        throwOnReceiptRevert,
+        timeout: parameters.timeout
+      });
+    }
+    if (account2?.type === "smart")
+      throw new AccountTypeNotSupportedError({
+        metaMessages: [
+          "Consider using the `sendUserOperation` Action instead."
+        ],
+        docsPath: "/docs/actions/bundler/sendUserOperation",
+        type: "smart"
+      });
+    throw new AccountTypeNotSupportedError({
+      docsPath: "/docs/actions/wallet/sendTransactionSync",
+      type: account2?.type
+    });
+  } catch (err2) {
+    if (err2 instanceof AccountTypeNotSupportedError)
+      throw err2;
+    if (nonceManagerParameters && !(err2 instanceof TransactionReceiptRevertedError))
+      account2?.nonceManager?.reset(nonceManagerParameters);
+    throw getTransactionError(err2, {
+      ...parameters,
+      account: account2,
+      chain: parameters.chain || void 0
+    });
+  }
+}
+
+// node_modules/viem/_esm/actions/wallet/writeContractSync.js
+async function writeContractSync(client, parameters) {
+  return writeContract.internal(client, sendTransactionSync, "sendTransactionSync", parameters);
+}
+
+// node_modules/viem/_esm/actions/token/approveSync.js
+async function approveSync(client, parameters) {
+  const { amount, token, throwOnReceiptRevert = true } = parameters;
+  const { decimals } = resolveToken(client, { token });
+  const resolved = resolveAmountDecimals(amount, decimals);
+  const receipt = await approve.inner(writeContractSync, client, {
+    ...parameters,
+    throwOnReceiptRevert
+  });
+  const { args } = approve.extractEvent(receipt.logs);
+  return {
+    ...args,
+    ...resolved === void 0 ? {} : { decimals: resolved, formatted: formatUnits(args.value, resolved) },
+    receipt
+  };
 }
 
 // node_modules/viem/_esm/actions/token/getAllowance.js
@@ -21722,6 +22645,86 @@ async function getTotalSupply(client, parameters) {
   getTotalSupply2.call = call3;
 })(getTotalSupply || (getTotalSupply = {}));
 
+// node_modules/viem/_esm/actions/token/transfer.js
+init_abis();
+async function transfer(client, parameters) {
+  return transfer.inner(writeContract, client, parameters);
+}
+(function(transfer2) {
+  async function inner(action, client, parameters) {
+    return await action(client, {
+      ...parameters,
+      ...transfer2.call(client, parameters)
+    });
+  }
+  transfer2.inner = inner;
+  function call3(client, parameters) {
+    return defineCall(getCall2(client, parameters));
+  }
+  transfer2.call = call3;
+  async function estimateGas2(client, parameters) {
+    return estimateContractGas(client, {
+      ...pickWriteParameters(parameters),
+      ...transfer2.call(client, parameters)
+    });
+  }
+  transfer2.estimateGas = estimateGas2;
+  async function simulate(client, parameters) {
+    return simulateContract(client, {
+      ...pickWriteParameters(parameters),
+      ...transfer2.call(client, parameters)
+    });
+  }
+  transfer2.simulate = simulate;
+  function extractEvent(logs) {
+    const [log] = parseEventLogs({
+      abi: erc20Abi,
+      logs,
+      eventName: "Transfer",
+      strict: true
+    });
+    if (!log)
+      throw new Error("`Transfer` event not found.");
+    return log;
+  }
+  transfer2.extractEvent = extractEvent;
+})(transfer || (transfer = {}));
+function getCall2(client, parameters) {
+  const { amount, from: from16, to, token } = parameters;
+  const { address, decimals } = resolveToken(client, { token });
+  const value = toBaseUnits(amount, decimals);
+  if (from16)
+    return {
+      abi: erc20Abi,
+      address,
+      args: [from16, to, value],
+      functionName: "transferFrom"
+    };
+  return {
+    abi: erc20Abi,
+    address,
+    args: [to, value],
+    functionName: "transfer"
+  };
+}
+
+// node_modules/viem/_esm/actions/token/transferSync.js
+async function transferSync(client, parameters) {
+  const { amount, token, throwOnReceiptRevert = true } = parameters;
+  const { decimals } = resolveToken(client, { token });
+  const resolved = resolveAmountDecimals(amount, decimals);
+  const receipt = await transfer.inner(writeContractSync, client, {
+    ...parameters,
+    throwOnReceiptRevert
+  });
+  const { args } = transfer.extractEvent(receipt.logs);
+  return {
+    ...args,
+    ...resolved === void 0 ? {} : { decimals: resolved, formatted: formatUnits(args.value, resolved) },
+    receipt
+  };
+}
+
 // node_modules/viem/_esm/clients/decorators/public.js
 function publicActions(client) {
   return {
@@ -21808,6 +22811,335 @@ function createPublicClient(parameters) {
     type: "publicClient"
   });
   return client.extend(publicActions);
+}
+
+// node_modules/viem/_esm/actions/wallet/addChain.js
+init_toHex();
+async function addChain(client, { chain }) {
+  const { id, name, nativeCurrency, rpcUrls, blockExplorers } = chain;
+  await client.request({
+    method: "wallet_addEthereumChain",
+    params: [
+      {
+        chainId: numberToHex(id),
+        chainName: name,
+        nativeCurrency,
+        rpcUrls: rpcUrls.default.http,
+        blockExplorerUrls: blockExplorers ? Object.values(blockExplorers).map(({ url }) => url) : void 0
+      }
+    ]
+  }, { dedupe: true, retryCount: 0 });
+}
+
+// node_modules/viem/_esm/actions/wallet/deployContract.js
+init_encodeDeployData();
+function deployContract(walletClient, parameters) {
+  const { abi: abi2, args, bytecode, ...request } = parameters;
+  const calldata = encodeDeployData({ abi: abi2, args, bytecode });
+  return sendTransaction(walletClient, {
+    ...request,
+    ...request.authorizationList ? { to: null } : {},
+    data: calldata
+  });
+}
+
+// node_modules/viem/_esm/actions/wallet/getAddresses.js
+init_getAddress();
+async function getAddresses(client) {
+  if (client.account?.type === "local")
+    return [client.account.address];
+  const addresses2 = await client.request({ method: "eth_accounts" }, { dedupe: true });
+  return addresses2.map((address) => checksumAddress(address));
+}
+
+// node_modules/viem/_esm/actions/wallet/getCapabilities.js
+init_parseAccount();
+init_toHex();
+async function getCapabilities(client, parameters = {}) {
+  const { account: account2 = client.account, chainId } = parameters;
+  const account_ = account2 ? parseAccount(account2) : void 0;
+  const params = chainId ? [account_?.address, [numberToHex(chainId)]] : [account_?.address];
+  const capabilities_raw = await client.request({
+    method: "wallet_getCapabilities",
+    params
+  });
+  const capabilities2 = {};
+  for (const [chainId2, capabilities_] of Object.entries(capabilities_raw)) {
+    capabilities2[Number(chainId2)] = {};
+    for (let [key, value] of Object.entries(capabilities_)) {
+      if (key === "addSubAccount")
+        key = "unstable_addSubAccount";
+      capabilities2[Number(chainId2)][key] = value;
+    }
+  }
+  return typeof chainId === "number" ? capabilities2[chainId] : capabilities2;
+}
+
+// node_modules/viem/_esm/actions/wallet/getPermissions.js
+async function getPermissions(client) {
+  const permissions = await client.request({ method: "wallet_getPermissions" }, { dedupe: true });
+  return permissions;
+}
+
+// node_modules/viem/_esm/actions/wallet/prepareAuthorization.js
+init_parseAccount();
+init_isAddressEqual();
+async function prepareAuthorization(client, parameters) {
+  const { account: account_ = client.account, chainId, nonce: nonce2 } = parameters;
+  if (!account_)
+    throw new AccountNotFoundError({
+      docsPath: "/docs/eip7702/prepareAuthorization"
+    });
+  const account2 = parseAccount(account_);
+  const executor = (() => {
+    if (!parameters.executor)
+      return void 0;
+    if (parameters.executor === "self")
+      return parameters.executor;
+    return parseAccount(parameters.executor);
+  })();
+  const authorization = {
+    address: parameters.contractAddress ?? parameters.address,
+    chainId,
+    nonce: nonce2
+  };
+  if (typeof authorization.chainId === "undefined")
+    authorization.chainId = client.chain?.id ?? await getAction(client, getChainId, "getChainId")({});
+  if (typeof authorization.nonce === "undefined") {
+    authorization.nonce = await getAction(client, getTransactionCount, "getTransactionCount")({
+      address: account2.address,
+      blockTag: "pending"
+    });
+    if (executor === "self" || executor?.address && isAddressEqual(executor.address, account2.address))
+      authorization.nonce += 1;
+  }
+  return authorization;
+}
+
+// node_modules/viem/_esm/actions/wallet/requestAddresses.js
+init_getAddress();
+async function requestAddresses(client) {
+  const addresses2 = await client.request({ method: "eth_requestAccounts" }, { dedupe: true, retryCount: 0 });
+  return addresses2.map((address) => getAddress(address));
+}
+
+// node_modules/viem/_esm/actions/wallet/requestPermissions.js
+async function requestPermissions(client, permissions) {
+  return client.request({
+    method: "wallet_requestPermissions",
+    params: [permissions]
+  }, { retryCount: 0 });
+}
+
+// node_modules/viem/_esm/actions/wallet/sendCallsSync.js
+async function sendCallsSync(client, parameters) {
+  const { chain = client.chain } = parameters;
+  const timeout = parameters.timeout ?? Math.max((chain?.blockTime ?? 0) * 3, 5e3);
+  const result = await getAction(client, sendCalls, "sendCalls")(parameters);
+  const status = await getAction(client, waitForCallsStatus, "waitForCallsStatus")({
+    ...parameters,
+    id: result.id,
+    timeout
+  });
+  return status;
+}
+
+// node_modules/viem/_esm/actions/wallet/showCallsStatus.js
+async function showCallsStatus(client, parameters) {
+  const { id } = parameters;
+  await client.request({
+    method: "wallet_showCallsStatus",
+    params: [id]
+  });
+  return;
+}
+
+// node_modules/viem/_esm/actions/wallet/signAuthorization.js
+init_parseAccount();
+async function signAuthorization2(client, parameters) {
+  const { account: account_ = client.account } = parameters;
+  if (!account_)
+    throw new AccountNotFoundError({
+      docsPath: "/docs/eip7702/signAuthorization"
+    });
+  const account2 = parseAccount(account_);
+  if (!account2.signAuthorization)
+    throw new AccountTypeNotSupportedError({
+      docsPath: "/docs/eip7702/signAuthorization",
+      metaMessages: [
+        "The `signAuthorization` Action does not support JSON-RPC Accounts."
+      ],
+      type: account2.type
+    });
+  const authorization = await prepareAuthorization(client, parameters);
+  return account2.signAuthorization(authorization);
+}
+
+// node_modules/viem/_esm/actions/wallet/signMessage.js
+init_parseAccount();
+init_toHex();
+async function signMessage2(client, { account: account_ = client.account, message }) {
+  if (!account_)
+    throw new AccountNotFoundError({
+      docsPath: "/docs/actions/wallet/signMessage"
+    });
+  const account2 = parseAccount(account_);
+  if (account2.signMessage)
+    return account2.signMessage({ message });
+  const message_ = (() => {
+    if (typeof message === "string")
+      return stringToHex(message);
+    if (message.raw instanceof Uint8Array)
+      return toHex(message.raw);
+    return message.raw;
+  })();
+  return client.request({
+    method: "personal_sign",
+    params: [message_, account2.address]
+  }, { retryCount: 0 });
+}
+
+// node_modules/viem/_esm/actions/wallet/signTransaction.js
+init_parseAccount();
+init_toHex();
+init_transactionRequest();
+init_assertRequest();
+async function signTransaction2(client, parameters) {
+  const { account: account_ = client.account, chain = client.chain, ...transaction } = parameters;
+  if (!account_)
+    throw new AccountNotFoundError({
+      docsPath: "/docs/actions/wallet/signTransaction"
+    });
+  const account2 = parseAccount(account_);
+  assertRequest({
+    account: account2,
+    ...parameters
+  });
+  const chainId = await getAction(client, getChainId, "getChainId")({});
+  if (chain !== null)
+    assertCurrentChain({
+      currentChainId: chainId,
+      chain
+    });
+  const formatters = chain?.formatters || client.chain?.formatters;
+  const format2 = formatters?.transactionRequest?.format || formatTransactionRequest;
+  if (account2.signTransaction)
+    return account2.signTransaction({
+      ...transaction,
+      account: account2,
+      chainId
+    }, { serializer: client.chain?.serializers?.transaction });
+  return await client.request({
+    method: "eth_signTransaction",
+    params: [
+      {
+        ...format2({
+          ...transaction,
+          account: account2
+        }, "signTransaction"),
+        chainId: numberToHex(chainId),
+        from: account2.address
+      }
+    ]
+  }, { retryCount: 0 });
+}
+
+// node_modules/viem/_esm/actions/wallet/signTypedData.js
+init_parseAccount();
+async function signTypedData2(client, parameters) {
+  const { account: account_ = client.account, domain, message, primaryType } = parameters;
+  if (!account_)
+    throw new AccountNotFoundError({
+      docsPath: "/docs/actions/wallet/signTypedData"
+    });
+  const account2 = parseAccount(account_);
+  const types = {
+    EIP712Domain: getTypesForEIP712Domain({ domain }),
+    ...parameters.types
+  };
+  validateTypedData({ domain, message, primaryType, types });
+  if (account2.signTypedData)
+    return account2.signTypedData({ domain, message, primaryType, types });
+  const typedData2 = serializeTypedData({ domain, message, primaryType, types });
+  return client.request({
+    method: "eth_signTypedData_v4",
+    params: [account2.address, typedData2]
+  }, { retryCount: 0 });
+}
+
+// node_modules/viem/_esm/actions/wallet/switchChain.js
+init_toHex();
+async function switchChain(client, { id }) {
+  await client.request({
+    method: "wallet_switchEthereumChain",
+    params: [
+      {
+        chainId: numberToHex(id)
+      }
+    ]
+  }, { retryCount: 0 });
+}
+
+// node_modules/viem/_esm/actions/wallet/watchAsset.js
+async function watchAsset(client, params) {
+  const added = await client.request({
+    method: "wallet_watchAsset",
+    params
+  }, { retryCount: 0 });
+  return added;
+}
+
+// node_modules/viem/_esm/clients/decorators/wallet.js
+function walletActions(client) {
+  return {
+    addChain: (args) => addChain(client, args),
+    deployContract: (args) => deployContract(client, args),
+    fillTransaction: (args) => fillTransaction(client, args),
+    getAddresses: () => getAddresses(client),
+    getCallsStatus: (args) => getCallsStatus(client, args),
+    getCapabilities: (args) => getCapabilities(client, args),
+    getChainId: () => getChainId(client),
+    getPermissions: () => getPermissions(client),
+    prepareAuthorization: (args) => prepareAuthorization(client, args),
+    prepareTransactionRequest: (args) => prepareTransactionRequest(client, args),
+    requestAddresses: () => requestAddresses(client),
+    requestPermissions: (args) => requestPermissions(client, args),
+    sendCalls: (args) => sendCalls(client, args),
+    sendCallsSync: (args) => sendCallsSync(client, args),
+    sendRawTransaction: (args) => sendRawTransaction(client, args),
+    sendRawTransactionSync: (args) => sendRawTransactionSync(client, args),
+    sendTransaction: (args) => sendTransaction(client, args),
+    sendTransactionSync: (args) => sendTransactionSync(client, args),
+    showCallsStatus: (args) => showCallsStatus(client, args),
+    signAuthorization: (args) => signAuthorization2(client, args),
+    signMessage: (args) => signMessage2(client, args),
+    signTransaction: (args) => signTransaction2(client, args),
+    signTypedData: (args) => signTypedData2(client, args),
+    switchChain: (args) => switchChain(client, args),
+    waitForCallsStatus: (args) => waitForCallsStatus(client, args),
+    watchAsset: (args) => watchAsset(client, args),
+    writeContract: (args) => writeContract(client, args),
+    writeContractSync: (args) => writeContractSync(client, args),
+    token: {
+      approve: bindActionDecorators(client, approve),
+      approveSync: bindActionDecorators(client, approveSync),
+      transfer: bindActionDecorators(client, transfer),
+      transferSync: bindActionDecorators(client, transferSync)
+    }
+  };
+}
+
+// node_modules/viem/_esm/clients/createWalletClient.js
+function createWalletClient(parameters) {
+  const { key = "wallet", name = "Wallet Client", transport } = parameters;
+  const client = createClient({
+    ...parameters,
+    key,
+    name,
+    transport,
+    type: "walletClient"
+  });
+  return client.extend(walletActions);
 }
 
 // node_modules/viem/_esm/clients/transports/createTransport.js
@@ -21922,7 +23254,10 @@ function http(url, config = {}) {
 }
 
 // node_modules/viem/_esm/index.js
+init_decodeFunctionData();
+init_encodeFunctionData();
 init_isAddress();
+init_concat();
 init_toBytes();
 init_toHex();
 init_keccak256();
@@ -21942,6 +23277,7 @@ async function addresses(id) {
   cached = h.addresses;
   return cached;
 }
+var transferScope = (token) => keccak256(concatHex([stringToHex("transfer:"), token]));
 
 // src/pap-core.ts
 var utf8 = new TextEncoder();
@@ -22012,6 +23348,7 @@ async function openAgentLayer(inner, agentPk, expect) {
   return pt.secret;
 }
 var blobHash = (blob) => keccak256(stringToHex(blob));
+var publicKeyOf = (privateKey) => bytesToHex2(secp256k1.getPublicKey(hexToBytes2(privateKey), true));
 var PAP_CHAIN_ID = 133;
 var papDomain = (verifyingContract) => ({ name: "PAP", version: "1", chainId: PAP_CHAIN_ID, verifyingContract });
 var papTypes = {
@@ -22046,6 +23383,8 @@ function typedData(verifyingContract, primaryType, message) {
 var wire = (m) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, typeof v === "bigint" ? v.toString() : v]));
 
 // src/secrets.ts
+import { chmodSync, mkdirSync as mkdirSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { join as join2 } from "node:path";
 var RejectedError = class extends Error {
   code = 4001;
 };
@@ -22132,8 +23471,312 @@ function writeSecretFile(name, value) {
 }
 var envName = (name) => `PAP_SECRET_${name.toUpperCase().replace(/-/g, "_")}`;
 
+// src/rpc-server.ts
+var UPSTREAM = () => process.env.PAP_RPC_URL ?? "https://testnet.hsk.xyz";
+var WAIT_MS = () => Number(process.env.PAP_WAIT_MS ?? 5 * 6e4);
+var PASSTHROUGH = /* @__PURE__ */ new Set([
+  "eth_chainId",
+  "net_version",
+  "web3_clientVersion",
+  "eth_blockNumber",
+  "eth_call",
+  "eth_gasPrice",
+  "eth_maxPriorityFeePerGas",
+  "eth_feeHistory",
+  "eth_getBalance",
+  "eth_getCode",
+  "eth_getStorageAt",
+  "eth_getTransactionCount",
+  "eth_getTransactionByHash",
+  "eth_getTransactionReceipt",
+  "eth_getBlockByNumber",
+  "eth_getBlockByHash",
+  "eth_getLogs",
+  "eth_syncing",
+  "eth_sendRawTransaction"
+  // already signed elsewhere: PAP adds nothing, just relays
+]);
+var erc20 = parseAbi(["function transfer(address to, uint256 amount) returns (bool)"]);
+var passportAbi = parseAbi([
+  "function pay(uint256 agentId, address token, address to, uint256 amount, bytes32 ref)",
+  "function record(uint256 agentId, bytes32 scope, uint256 amount, bytes32 ref)",
+  "function canAct(uint256 agentId, bytes32 scope, uint256 amount) view returns (bool)"
+]);
+var RpcError2 = class extends Error {
+  constructor(code, message, data) {
+    super(message);
+    this.code = code;
+    this.data = data;
+  }
+  code;
+  data;
+};
+var rejected = (m = "User rejected the request.") => new RpcError2(4001, m);
+var unsupported = (m) => new RpcError2(4200, m);
+var unauthorized = (m) => new RpcError2(4100, m);
+async function upstream(method, params) {
+  const res = await fetch(UPSTREAM(), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params: params ?? [] })
+  });
+  const j = await res.json();
+  if (j.error) throw new RpcError2(j.error.code, j.error.message, j.error.data);
+  return j.result;
+}
+function mustBeAgent(id, from16) {
+  if (from16 && from16.toLowerCase() !== id.address.toLowerCase())
+    throw unauthorized(`Only the agent account ${id.address} is available on this endpoint.`);
+}
+async function phoneTransfer(ctx, token, to, amount, memo) {
+  const { id } = ctx;
+  const payload = { agentAddress: id.address, action: { type: "transfer", token, to, amount, memo } };
+  const r = await call(id, "/api/requests", {
+    method: "POST",
+    body: JSON.stringify({ ...payload, sig: await sign2(id, "request", payload) })
+  });
+  ctx.log(`waiting for approval on the phone: ${r.url}`);
+  openBrowser(r.showUrl);
+  const st = await waitFor(id, `/api/requests/${r.requestId}`, WAIT_MS());
+  if (st?.status === "approved" && st.txHash) return st.txHash;
+  if (st?.status === "rejected") throw rejected(`Rejected on the phone${st.reason ? ` (${st.reason})` : ""}.`);
+  throw new RpcError2(4900, st?.status === "expired" ? "Request expired without a decision." : "Timed out waiting for the phone.");
+}
+async function agentSend(ctx, to, data) {
+  const client = createWalletClient({ account: account(ctx.id), chain: hskTestnet, transport: http(UPSTREAM()) });
+  return client.sendTransaction({ to, data });
+}
+async function sendTransaction2(ctx, tx) {
+  const { id } = ctx;
+  mustBeAgent(id, tx.from);
+  if (!id.agentId || !id.ownerAddress) throw unauthorized("Agent not paired: run pap_connect first.");
+  if (!tx.to || !tx.data) throw unsupported("Only contract calls are supported (plain value transfers are not brokered).");
+  if (tx.value && BigInt(tx.value) > 0n) throw unsupported("Sending native value is not supported through PAP.");
+  const a = await addresses(id);
+  const agentId = BigInt(id.agentId);
+  if (a.AgentPassport && tx.to.toLowerCase() === a.AgentPassport.toLowerCase()) {
+    const fn = decodeFunctionData({ abi: passportAbi, data: tx.data }).functionName;
+    if (fn !== "pay" && fn !== "record") throw unsupported(`AgentPassport.${fn} is owner-only.`);
+    ctx.log(`agent signs AgentPassport.${fn} (visa enforced on-chain)`);
+    return agentSend(ctx, tx.to, tx.data);
+  }
+  let decoded;
+  try {
+    decoded = decodeFunctionData({ abi: erc20, data: tx.data });
+  } catch {
+    throw unsupported("PAP only brokers ERC-20 transfer(to, amount) and AgentPassport calls; this transaction was not signed.");
+  }
+  const [to, amount] = decoded.args;
+  const token = tx.to;
+  const decimals = a.DemoUSDT && token.toLowerCase() === a.DemoUSDT.toLowerCase() ? 6 : 18;
+  const human = formatUnits(amount, decimals);
+  if (a.AgentPassport) {
+    const [covered, gas] = await Promise.all([
+      pub.readContract({ address: a.AgentPassport, abi: passportAbi, functionName: "canAct", args: [agentId, transferScope(token), amount] }).catch(() => false),
+      pub.getBalance({ address: id.address }).catch(() => 0n)
+    ]);
+    if (covered && gas > 0n) {
+      ctx.log(`visa covers ${human} \u2192 agent pays alone via AgentPassport.pay`);
+      const ref = keccak256(stringToHex(`pap:rpc:${Date.now()}`));
+      return agentSend(ctx, a.AgentPassport, encodeFunctionData({ abi: passportAbi, functionName: "pay", args: [agentId, token, to, amount, ref] }));
+    }
+  }
+  ctx.log(`needs the human: ${human} to ${to}`);
+  return phoneTransfer(ctx, token, to, human, "via pap rpc (eth_sendTransaction)");
+}
+function isBrokered(data) {
+  try {
+    decodeFunctionData({ abi: erc20, data });
+    return true;
+  } catch {
+    return false;
+  }
+}
+async function dispatch(ctx, method, params = []) {
+  const { id } = ctx;
+  switch (method) {
+    case "eth_accounts":
+    case "eth_requestAccounts":
+      return [id.address];
+    case "eth_coinbase":
+      return id.address;
+    case "eth_sendTransaction":
+      return sendTransaction2(ctx, params[0] ?? {});
+    case "eth_estimateGas": {
+      const tx = params[0] ?? {};
+      if (tx.from?.toLowerCase() === id.address.toLowerCase() && tx.data && isBrokered(tx.data)) return "0x30d40";
+      return upstream(method, params);
+    }
+    case "personal_sign": {
+      const [data, from16] = params;
+      mustBeAgent(id, from16);
+      return account(id).signMessage({ message: { raw: data } });
+    }
+    case "eth_sign": {
+      const [from16, data] = params;
+      mustBeAgent(id, from16);
+      return account(id).signMessage({ message: { raw: data } });
+    }
+    case "eth_signTypedData_v4": {
+      const [from16, json] = params;
+      mustBeAgent(id, from16);
+      const td = typeof json === "string" ? JSON.parse(json) : json;
+      const { EIP712Domain: _drop, ...types } = td.types ?? {};
+      void _drop;
+      return account(id).signTypedData({ domain: td.domain, types, primaryType: td.primaryType, message: td.message });
+    }
+    case "eth_getEncryptionPublicKey": {
+      mustBeAgent(id, params[0]);
+      return publicKeyOf(id.privateKey);
+    }
+    case "eth_decrypt":
+      return decrypt(ctx, params);
+    case "wallet_getCapabilities":
+      return capabilities(ctx);
+    case "wallet_grantPermissions":
+      return grantPermissions(ctx, params[0]);
+    case "wallet_sendCalls":
+      return sendCalls2(ctx, params[0]);
+    case "wallet_getCallsStatus":
+      return callsStatus(params[0]);
+    default:
+      if (PASSTHROUGH.has(method)) return upstream(method, params);
+      throw unsupported(`Method ${method} is not supported by pap rpc.`);
+  }
+}
+async function decrypt(ctx, [payload, from16]) {
+  mustBeAgent(ctx.id, from16);
+  let text = typeof payload === "string" ? payload : JSON.stringify(payload);
+  if (/^0x[0-9a-f]*$/i.test(text)) text = Buffer.from(text.slice(2), "hex").toString("utf8");
+  let name;
+  let reason = "Requested by a tool through eth_decrypt (pap rpc)";
+  if (text.startsWith("pap:secret:")) name = text.slice("pap:secret:".length);
+  else {
+    try {
+      const j = JSON.parse(text);
+      if (j?.pap === "secret") {
+        name = j.name;
+        if (typeof j.reason === "string") reason = j.reason;
+      } else if (j?.version === "x25519-xsalsa20-poly1305")
+        throw unsupported("MetaMask x25519 blobs are not supported: PAP secrets are sealed with `pap seal`.");
+    } catch (e) {
+      if (e instanceof RpcError2) throw e;
+    }
+  }
+  if (!name) throw new RpcError2(-32602, 'eth_decrypt expects "pap:secret:<name>" or {"pap":"secret","name":\u2026,"reason":\u2026}');
+  const { requestId, url, showUrl } = await requestReveal(ctx.id, name, reason);
+  ctx.log(`secret "${name}" requested \u2014 approve on the phone: ${url}`);
+  openBrowser(showUrl);
+  try {
+    const v = await awaitReveal(ctx.id, requestId, name, WAIT_MS());
+    if (v === null) throw new RpcError2(4900, "Timed out waiting for the phone.");
+    return v;
+  } catch (e) {
+    if (e instanceof RejectedError) throw rejected(e.message);
+    if (e instanceof ExpiredError) throw new RpcError2(4900, e.message);
+    throw e;
+  }
+}
+async function capabilities(ctx) {
+  const a = await addresses(ctx.id);
+  const chain = `0x${hskTestnet.id.toString(16)}`;
+  return {
+    [chain]: {
+      atomic: { status: "unsupported" },
+      pap: {
+        agent: ctx.id.address,
+        agentId: ctx.id.agentId ?? null,
+        owner: ctx.id.ownerAddress ?? null,
+        passport: a.AgentPassport ?? null,
+        secrets: { supported: true, method: "eth_decrypt", format: "pap:secret:<name>" },
+        visas: { supported: true, method: "wallet_grantPermissions", types: ["erc20-token-allowance"] },
+        gate: { supported: true, scheme: "pap-visa" }
+      }
+    }
+  };
+}
+async function grantPermissions(ctx, req) {
+  const r = req ?? {};
+  const perm = r.permissions?.[0];
+  if (!perm || perm.type !== "erc20-token-allowance" || !perm.data?.token || !isAddress(perm.data.token))
+    throw unsupported('Only one permission of type "erc20-token-allowance" {token, allowance} is supported.');
+  const a = await addresses(ctx.id);
+  if (!a.AgentPassport || !ctx.id.agentId) throw unauthorized("Agent not paired: run pap_connect first.");
+  const current = await pub.readContract({ address: a.AgentPassport, abi: passportAbi, functionName: "canAct", args: [BigInt(ctx.id.agentId), transferScope(perm.data.token), 0n] }).catch(() => false);
+  return {
+    grantedPermissions: current ? [{ type: perm.type, data: perm.data }] : [],
+    expiry: r.expiry ?? null,
+    context: `pap:${ctx.id.agentId}:${transferScope(perm.data.token)}`,
+    pap: {
+      status: current ? "active" : "needs-owner",
+      how: current ? "A visa for this token is already active on AgentPassport." : "Visas are granted by the human on their phone (AgentPassport.grant). Ask them to open the PAP wallet \u2192 Agents."
+    }
+  };
+}
+var bundles = /* @__PURE__ */ new Map();
+async function sendCalls2(ctx, req) {
+  const r = req ?? {};
+  if (!Array.isArray(r.calls) || !r.calls.length) throw new RpcError2(-32602, "calls[] required");
+  if (r.atomicRequired) throw new RpcError2(5760, "Atomic execution is not supported: each call is a separate PAP approval.");
+  mustBeAgent(ctx.id, r.from);
+  const id = `0x${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("hex")}`;
+  const bundle = { status: 100, receipts: [], error: void 0 };
+  bundles.set(id, bundle);
+  (async () => {
+    for (const c of r.calls) {
+      try {
+        bundle.receipts.push({ transactionHash: await sendTransaction2(ctx, { ...c, from: ctx.id.address }) });
+      } catch (e) {
+        bundle.status = 400;
+        bundle.error = e.message;
+        return;
+      }
+    }
+    bundle.status = 200;
+  })();
+  return { id };
+}
+function callsStatus(id) {
+  const b = bundles.get(id);
+  if (!b) throw new RpcError2(5730, "Unknown bundle id");
+  return { version: "2.0.0", id, chainId: `0x${hskTestnet.id.toString(16)}`, status: b.status, atomic: false, receipts: b.receipts, ...b.error ? { error: b.error } : {} };
+}
+async function readBody(req) {
+  const chunks = [];
+  for await (const c of req) chunks.push(c);
+  return Buffer.concat(chunks).toString("utf8");
+}
+async function one(ctx, r) {
+  if (!r || r.jsonrpc !== "2.0" || typeof r.method !== "string")
+    return { jsonrpc: "2.0", id: null, error: { code: -32600, message: "Invalid Request" } };
+  try {
+    const result = await dispatch(ctx, r.method, Array.isArray(r.params) ? r.params : []);
+    return { jsonrpc: "2.0", id: r.id ?? null, result };
+  } catch (e) {
+    const err2 = e instanceof RpcError2 ? e : new RpcError2(-32603, e.message);
+    return { jsonrpc: "2.0", id: r.id ?? null, error: { code: err2.code, message: err2.message, ...err2.data ? { data: err2.data } : {} } };
+  }
+}
+function startRpcServer(ctx, port, host = "127.0.0.1") {
+  const server = createServer(async (req, res) => {
+    res.setHeader("access-control-allow-origin", "*");
+    res.setHeader("access-control-allow-headers", "content-type");
+    if (req.method === "OPTIONS") return res.writeHead(204).end();
+    if (req.method !== "POST") return res.writeHead(405).end();
+    let body;
+    try {
+      body = JSON.parse(await readBody(req));
+    } catch {
+      return res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }));
+    }
+    const out = Array.isArray(body) ? await Promise.all(body.map((b) => one(ctx, b))) : await one(ctx, body);
+    res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(out));
+  });
+  return new Promise((resolve) => server.listen(port, host, () => resolve(server)));
+}
+
 // src/cli.ts
-var WAIT_MS = Number(process.env.PAP_WAIT_MS ?? 5 * 6e4);
+var WAIT_MS2 = Number(process.env.PAP_WAIT_MS ?? 5 * 6e4);
 var err = (m, code = 1) => {
   process.stderr.write(`pap: ${m}
 `);
@@ -22192,7 +23835,7 @@ async function reveal(id, name, reason) {
 `);
   openBrowser(showUrl);
   try {
-    const v = await awaitReveal(id, requestId, name, WAIT_MS);
+    const v = await awaitReveal(id, requestId, name, WAIT_MS2);
     if (v === null) err("timed out waiting for the phone", 5);
     return v;
   } catch (e) {
@@ -22226,6 +23869,19 @@ relay  ${id.relay}`);
     console.log(`Approve on your phone to activate it (${maxReads} reads, ${days} days): ${r.url}`);
     if (r.replaces) console.log(`(replaces the current "${name}" once approved)`);
     openBrowser(r.showUrl);
+    return;
+  }
+  if (cmd === "rpc") {
+    const port = Number(flag(args, "port") ?? 8545);
+    const id = identity();
+    await startRpcServer({ id, log: (l) => process.stderr.write(`[pap rpc] ${l}
+`) }, port);
+    process.stderr.write(
+      `pap rpc listening on http://127.0.0.1:${port} (HSK Chain, chainId 133)
+  account ${id.address} \u2014 reads go to ${UPSTREAM()}, transactions and secrets go through your phone
+  try: cast balance ${id.ownerAddress} --rpc-url http://127.0.0.1:${port}
+`
+    );
     return;
   }
   if (cmd === "secret") {
@@ -22266,6 +23922,7 @@ relay  ${id.relay}`);
   pap secret list
   pap secret get <name> --reason "..." [--stdout]   ask your phone; writes ~/.pap/secrets/<name> unless --stdout
   pap secret exec <name> --reason "..." -- <cmd\u2026>   run <cmd> with ${envName("<name>")} set only for it
+  pap rpc [--port 8545]                             local Ethereum JSON-RPC: point cast / viem / ethers at it
 
 Exit codes: 0 ok \xB7 1 error \xB7 4 rejected \xB7 5 expired`);
   if (cmd && cmd !== "help" && cmd !== "--help") process.exit(1);

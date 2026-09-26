@@ -32,9 +32,9 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 | PAP-06 | CLI: `pap seal` y `pap secret get` | Secretos | PAP-02 | done |
 | PAP-07 | Visa y auditoría on-chain para secretos | Secretos | PAP-04 | done |
 | PAP-08 | JSON-RPC 2.0: endpoint `/api/rpc` con namespace `pap_*` | JSON-RPC | PAP-02 | done |
-| PAP-09 | Signer local EIP-1193 (`pap rpc`) | JSON-RPC | PAP-08 | to do |
-| PAP-10 | `eth_getEncryptionPublicKey` / `eth_decrypt` sobre doble firma | JSON-RPC | PAP-09 | to do |
-| PAP-11 | Métodos `wallet_*` (EIP-7715, EIP-5792, capabilities) | JSON-RPC | PAP-09 | to do |
+| PAP-09 | Signer local EIP-1193 (`pap rpc`) | JSON-RPC | PAP-08 | done |
+| PAP-10 | `eth_getEncryptionPublicKey` / `eth_decrypt` sobre doble firma | JSON-RPC | PAP-09 | done |
+| PAP-11 | Métodos `wallet_*` (EIP-7715, EIP-5792, capabilities) | JSON-RPC | PAP-09 | done |
 | PAP-12 | `/wallet`: pestañas Agentes · Bóveda · Sellos | UX | PAP-02, PAP-15 | done |
 | PAP-13 | Notificaciones push en la PWA | UX | PAP-04 | to do |
 | PAP-14 | `/vault/new`: sellar desde el navegador | UX | PAP-01, PAP-02 | done |
@@ -360,7 +360,7 @@ _Pendiente._
 
 ### PAP-09 — Signer local EIP-1193 (`pap rpc`)
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** JSON-RPC
 - **Depende de:** PAP-08
 
@@ -382,13 +382,18 @@ _Pendiente._
 - Tx por encima del límite → aprobación requerida o revert on-chain.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `mcp/src/rpc-server.ts` + `pap rpc [--port 8545]` en la CLI; escucha solo en `127.0.0.1`.
+- Lecturas reenviadas a HSK. `eth_accounts` = el agente. `eth_sendTransaction` de un ERC-20 `transfer(to, amount)` se convierte en pago PAP desde la billetera del humano: el agente paga solo vía `AgentPassport.pay` si la visa lo cubre y tiene gas; si no, aprueba el teléfono. Llamadas a `AgentPassport` las firma el agente y las valida el contrato. **Cualquier otra transacción se rechaza con 4200 y nunca se firma.**
+- Hallazgo: herramientas como `cast send` estiman gas antes de enviar, y en HSK eso revertiría porque el agente no tiene tokens; `eth_estimateGas` se responde localmente para las transferencias que PAP gestiona.
+- Errores EIP-1193: 4001 rechazado, 4100 otra cuenta, 4200 no soportado, 4900 expirado.
+- Prueba: `mcp/scripts/rpc-signer-test.mjs` con viem real, un nodo HSK falso (verifica qué se reenvía) y teléfono simulado: **20 checks**.
+- **Pendiente:** probar `cast`, ethers y web3.py reales contra HSK (esta sesión no tiene Foundry ni red a HSK); viem cubre el mismo protocolo.
 
 ---
 
 ### PAP-10 — `eth_getEncryptionPublicKey` / `eth_decrypt` sobre doble firma
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** JSON-RPC
 - **Depende de:** PAP-09
 
@@ -406,13 +411,15 @@ En el signer local: `eth_getEncryptionPublicKey(agent)` devuelve la llave públi
 - Script: `eth_getEncryptionPublicKey` → sellar → `eth_decrypt` → phone-sim → valor correcto.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `eth_getEncryptionPublicKey` devuelve la llave comprimida del agente; `eth_decrypt` acepta `"pap:secret:<name>"` o `{"pap":"secret","name","reason"}` (también en hex) y corre el flujo de doble firma: sin aprobación del teléfono no hay texto plano.
+- **Diferencia con MetaMask** documentada en `docs/RPC.md`: los blobs `x25519-xsalsa20-poly1305` se rechazan con un error claro (4200), porque los secretos PAP usan ECIES por capas.
+- Probado en `rpc-signer-test.mjs`.
 
 ---
 
 ### PAP-11 — Métodos `wallet_*` (EIP-7715, EIP-5792, capabilities)
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** JSON-RPC
 - **Depende de:** PAP-09
 
@@ -434,7 +441,10 @@ _Pendiente._
 - Script: `wallet_sendCalls` con 3 pagos → 3 eventos `Paid`.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `wallet_getCapabilities` anuncia `pap: {secrets, visas, gate}` bajo `0x85`.
+- `wallet_grantPermissions` (subconjunto EIP-7715): un permiso `erc20-token-allowance`; informa si ya hay visa activa on-chain. **Cambio frente al plan:** no abre un grant automático; la visa se otorga en el teléfono, porque el agente solo puede pedir. Documentado qué campos se soportan.
+- `wallet_sendCalls` / `wallet_getCallsStatus` (EIP-5792): cada transferencia sigue las reglas de `eth_sendTransaction` en orden. **Desviación:** hoy es una aprobación por llamada, no una sola para todo el lote, y `atomicRequired: true` responde 5760 (no soportado). Un lote con un solo Face ID necesita un tipo de request `batch` en el teléfono (queda como deuda).
+- Probado en `rpc-signer-test.mjs` (lote de 2 → 2 recibos).
 
 ---
 
