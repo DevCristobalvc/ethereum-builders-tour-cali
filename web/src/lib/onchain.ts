@@ -15,6 +15,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { ABI, ADDRESSES, DEMO_TOKEN_DECIMALS, hskTestnet, transferScope } from "./chain";
+import { revealRef, secretScope } from "./pap-core";
 
 export const pub = createPublicClient({ chain: hskTestnet, transport: http() });
 
@@ -145,3 +146,49 @@ export async function tokenBalance(owner: Address) {
 }
 
 export const gasBalance = (a: Address) => pub.getBalance({ address: a });
+
+/** Sealed secrets: the visa for scope keccak256("secret:" + name) — `maxReads` reads until `expiry`. */
+export async function grantSecretVisa(pk: Hex, agentId: bigint, name: string, maxReads: bigint, expiry: bigint) {
+  const { client } = walletFor(pk);
+  const hash = await client.writeContract({
+    address: need("AgentPassport"),
+    abi: ABI.AgentPassport,
+    functionName: "grant",
+    args: [agentId, secretScope(name), maxReads, expiry],
+  });
+  const rc = await pub.waitForTransactionReceipt({ hash });
+  if (rc.status !== "success") throw new Error("grant reverted");
+  return hash;
+}
+
+/** One read of a sealed secret = one `record()` stamp; reverts LimitExceeded / Expired on-chain. */
+export async function recordReveal(pk: Hex, agentId: bigint, name: string, requestId: string) {
+  const { client } = walletFor(pk);
+  const hash = await client.writeContract({
+    address: need("AgentPassport"),
+    abi: ABI.AgentPassport,
+    functionName: "record",
+    args: [agentId, secretScope(name), 1n, revealRef(requestId)],
+  });
+  const rc = await pub.waitForTransactionReceipt({ hash });
+  if (rc.status !== "success") throw new Error("record reverted (read limit reached or visa expired)");
+  return hash;
+}
+
+export async function readSecretGrant(agentId: bigint, name: string): Promise<Grant> {
+  const [limit, spent, expiry, active] = (await pub.readContract({
+    address: need("AgentPassport"),
+    abi: ABI.AgentPassport,
+    functionName: "getGrant",
+    args: [agentId, secretScope(name)],
+  })) as [bigint, bigint, bigint, boolean];
+  return { limit, spent, expiry, active };
+}
+
+export async function revokeVisa(pk: Hex, agentId: bigint, scope: Hex) {
+  const { client } = walletFor(pk);
+  const hash = await client.writeContract({ address: need("AgentPassport"), abi: ABI.AgentPassport, functionName: "revoke", args: [agentId, scope] });
+  const rc = await pub.waitForTransactionReceipt({ hash });
+  if (rc.status !== "success") throw new Error("revoke reverted");
+  return hash;
+}

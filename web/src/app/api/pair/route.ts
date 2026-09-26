@@ -1,5 +1,6 @@
 import { isAddress, type Address, type Hex } from "viem";
 import { bad, json, baseUrl } from "@/lib/api";
+import { messageSignerKey } from "@/lib/secrets";
 import { verifySig } from "@/lib/sig";
 import { newId, write } from "@/lib/store";
 import type { PairState } from "@/lib/types";
@@ -13,7 +14,8 @@ export async function POST(req: Request) {
   const payload = { agentAddress: body.agentAddress as Address, agentName: body.agentName };
   if (!(await verifySig("pair", payload, payload.agentAddress, body.sig as Hex))) return bad("bad signature", 401);
 
-  const state: PairState = { id: newId(), status: "pending", ...payload, createdAt: Date.now() };
+  const agentPublicKey = (await messageSignerKey("pair", payload, body.sig as Hex)) ?? undefined;
+  const state: PairState = { id: newId(), status: "pending", ...payload, agentPublicKey, createdAt: Date.now() };
   await write("pair", state.id, state);
   return json({
     pairId: state.id,

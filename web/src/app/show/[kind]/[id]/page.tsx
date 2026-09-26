@@ -3,6 +3,7 @@
 import QRCode from "qrcode";
 import { use, useEffect, useState } from "react";
 import { Logo, Status, TxLink } from "@/components/ui";
+import { summarize } from "@/lib/actions";
 import { TOKEN_SYMBOL } from "@/lib/chain";
 import type { PairState, RequestState } from "@/lib/types";
 
@@ -54,11 +55,9 @@ export default function ShowPage({ params }: { params: Promise<{ kind: string; i
               </>
             ) : (
               <>
-                <b className="text-foreground">{req?.agentName ?? "Your agent"}</b> wants to send{" "}
-                <b className="text-foreground">
-                  {req?.action.amount} {TOKEN_SYMBOL}
-                </b>
-                . Scan to review and approve.
+                <b className="text-foreground">{req?.agentName ?? "Your agent"}</b> wants to{" "}
+                <b className="text-foreground">{req ? summarize(req.action).title.toLowerCase() : "act"}</b>. Scan to review and
+                approve.
               </>
             )}
           </p>
@@ -78,7 +77,9 @@ export default function ShowPage({ params }: { params: Promise<{ kind: string; i
                 ? `Agent connected · ERC-8004 #${pair?.agentId}`
                 : "Pairing rejected"
               : state.status === "approved"
-                ? `Sent ${req?.action.amount} ${TOKEN_SYMBOL}`
+                ? req?.action.type === "transfer"
+                  ? `Sent ${req.action.amount} ${TOKEN_SYMBOL}`
+                  : `Approved: ${req ? summarize(req.action).title : ""}`
                 : `Request ${state.status}`}
           </p>
           <Status s={state.status} />

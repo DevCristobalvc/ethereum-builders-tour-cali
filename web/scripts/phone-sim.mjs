@@ -3,17 +3,20 @@
  * of a passkey. Used to test the whole protocol end-to-end without an iPhone.
  *
  *   node scripts/phone-sim.mjs pair <pairId>       # onboard the agent (4 txs) and approve pairing
- *   node scripts/phone-sim.mjs approve <requestId> # execute AgentPassport.pay and resolve
+ *   node scripts/phone-sim.mjs approve <requestId> # transfer: pay() · seal: grant() · reveal: peel + record()
  *   node scripts/phone-sim.mjs reject <requestId>
  *
- * Env: PHONE_PRIVATE_KEY (defaults to TEST_PRIVATE_KEY from .env.local), PAP_RELAY_URL
+ * Env: PHONE_PRIVATE_KEY (defaults to TEST_PRIVATE_KEY from .env.local), PAP_RELAY_URL,
+ *      PAP_SIM_NO_CHAIN=1 to skip the on-chain txs (relay-only runs against a local dev server)
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { concatHex, createPublicClient, createWalletClient, http, keccak256, maxUint256, parseEventLogs, parseUnits, stringToHex, toBytes } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { blobHash, peelOwnerLayer, revealRef, secretScope, typedData } from "../src/lib/pap-core.ts";
 
+const envFile = new URL("../.env.local", import.meta.url);
 const env = Object.fromEntries(
-  readFileSync(new URL("../.env.local", import.meta.url), "utf8")
+  (existsSync(envFile) ? readFileSync(envFile, "utf8") : "")
     .split("\n")
     .filter((l) => /^[A-Z_]+=/.test(l))
     .map((l) => { const [k, v] = l.split(/=(.*)/s); return [k, v.trim().replace(/^"(.*)"$/, "$1")]; })
@@ -35,7 +38,12 @@ const api = async (path, body) => {
   if (!r.ok) throw new Error(`${path}: ${d.error}`);
   return d;
 };
+const NO_CHAIN = Boolean(process.env.PAP_SIM_NO_CHAIN);
 const tx = async (label, req) => {
+  if (NO_CHAIN) {
+    console.log(`  (skipped on-chain) ${label}`);
+    return { transactionHash: `0x${"00".repeat(32)}`, logs: [] };
+  }
   const hash = await wallet.writeContract(req);
   const rc = await pub.waitForTransactionReceipt({ hash });
   console.log(`  ${rc.status === "success" ? "✓" : "✗"} ${label}  ${hash}`);
@@ -55,7 +63,7 @@ if (cmd === "pair") {
   const regHash = regRc.transactionHash;
   // Read the id from the event, not from a follow-up eth_call (load-balanced RPC may lag a block).
   const [reg] = parseEventLogs({ abi: abis.IdentityRegistry, eventName: "Registered", logs: regRc.logs });
-  const agentId = reg.args.agentId;
+  const agentId = reg?.args.agentId ?? 1n; // 1n only in PAP_SIM_NO_CHAIN runs
   console.log(`  agentId #${agentId}`);
   await tx("faucet demoUSDT", { address: A.DemoUSDT, abi: abis.DemoUSDT, functionName: "faucet", args: [] });
   await tx("approve passport", { address: A.DemoUSDT, abi: abis.DemoUSDT, functionName: "approve", args: [A.AgentPassport, maxUint256] });
@@ -68,15 +76,30 @@ if (cmd === "pair") {
   console.log(`paired → agentId #${res.agentId}`);
 } else if (cmd === "approve" || cmd === "reject") {
   const req = await api(`/api/requests/${id}`);
-  console.log(`request: ${req.agentName} wants ${req.action.amount} demoUSDT → ${req.action.to} (status ${req.status})`);
+  const a = req.action;
+  const what = a.type === "transfer" ? `${a.amount} demoUSDT → ${a.to}` : a.type === "reveal" ? `read secret "${a.name}" — "${a.reason}"` : `store secret "${a.name}" (${a.maxReads} reads)`;
+  console.log(`request: ${req.agentName} wants to ${what} (status ${req.status})`);
   let txHash = "";
+  const extra = {};
   if (cmd === "approve") {
-    const ref = keccak256(toBytes(`pap:req:${id}`));
-    txHash = (await tx("AgentPassport.pay", { address: A.AgentPassport, abi: abis.AgentPassport, functionName: "pay", args: [BigInt(req.agentId), req.action.token, req.action.to, parseUnits(req.action.amount, 6), ref] })).transactionHash;
+    const agentId = BigInt(req.agentId);
+    if (a.type === "transfer") {
+      const ref = keccak256(toBytes(`pap:req:${id}`));
+      txHash = (await tx("AgentPassport.pay", { address: A.AgentPassport, abi: abis.AgentPassport, functionName: "pay", args: [agentId, a.token, a.to, parseUnits(a.amount, 6), ref] })).transactionHash;
+    } else if (a.type === "seal") {
+      txHash = (await tx(`grant visa secret:${a.name}`, { address: A.AgentPassport, abi: abis.AgentPassport, functionName: "grant", args: [agentId, secretScope(a.name), BigInt(a.maxReads), BigInt(a.expiry)] })).transactionHash;
+    } else {
+      const secret = await api(`/api/secrets/${req.agentAddress}/${a.name}`);
+      const inner = await peelOwnerLayer(secret.blob, PK, { name: a.name, agent: req.agentAddress });
+      console.log("  ✓ peeled the owner layer (value still encrypted to the agent)");
+      txHash = (await tx("AgentPassport.record (1 read)", { address: A.AgentPassport, abi: abis.AgentPassport, functionName: "record", args: [agentId, secretScope(a.name), 1n, revealRef(id)] })).transactionHash;
+      extra.result = inner;
+      extra.approvalSig = await account.signTypedData(typedData(A.AgentPassport, "RevealApproval", { requestId: id, agent: req.agentAddress, name: a.name, resultHash: blobHash(inner) }));
+    }
   }
   const payload = { requestId: id, status: cmd === "approve" ? "approved" : "rejected", txHash, reason: cmd === "reject" ? "rejected by owner (sim)" : "" };
   const sig = await account.signMessage({ message: canonical("resolve", payload) });
-  const res = await api(`/api/requests/${id}/resolve`, { ...payload, sig });
+  const res = await api(`/api/requests/${id}/resolve`, { ...payload, ...extra, sig });
   console.log(`resolved → ${res.status}${res.txHash ? ` ${res.txHash}` : ""}`);
 } else {
   console.log("usage: phone-sim.mjs pair <pairId> | approve <requestId> | reject <requestId>");

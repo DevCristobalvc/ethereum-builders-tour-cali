@@ -25,9 +25,9 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 | ID | Título | Épica | Depende de | Estado |
 |---|---|---|---|---|
 | PAP-01 | Librería de cifrado por capas (ECIES) | Secretos | — | done |
-| PAP-02 | Relay: almacenamiento de secretos + request `reveal` | Secretos | PAP-01, PAP-03 | to do |
+| PAP-02 | Relay: almacenamiento de secretos + request `reveal` | Secretos | PAP-01, PAP-03 | done |
 | PAP-03 | Tipos EIP-712 para solicitud y aprobación | Secretos | — | done |
-| PAP-04 | Teléfono: tarjeta de aprobación de secretos | Secretos / UX | PAP-02, PAP-15 | to do |
+| PAP-04 | Teléfono: tarjeta de aprobación de secretos | Secretos / UX | PAP-02, PAP-15 | done |
 | PAP-05 | MCP: tool `pap_secret` | Secretos | PAP-02 | to do |
 | PAP-06 | CLI: `pap seal` y `pap secret get` | Secretos | PAP-02 | to do |
 | PAP-07 | Visa y auditoría on-chain para secretos | Secretos | PAP-04 | to do |
@@ -99,7 +99,7 @@ Módulo compartido (Node + navegador) con `seal(plaintext, phonePubKey, agentPub
 
 ### PAP-02 — Relay: almacenamiento de secretos + request `reveal`
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Secretos
 - **Depende de:** PAP-01, PAP-03
 
@@ -131,7 +131,13 @@ Nuevos tipos en `web/src/lib/types.ts`: `SecretRecord {name, agentAddress, owner
 - Regresión: `mcp/scripts/e2e.mjs` sigue pasando.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- Rutas nuevas: `POST/GET /api/secrets`, `GET/DELETE /api/secrets/:agent/:name`, `POST /api/agents/:address/keys` (publica llaves públicas de agentes emparejados antes de esta versión). `POST /api/requests` acepta `type: "reveal"` y `resolve` acepta `result` + `approvalSig`.
+- **Sellado en dos caminos:** si lo firma la llave del agente (CLI en la laptop) queda pendiente y se crea un request `seal` para el teléfono, que hace el `grant` on-chain y lo activa; si lo firma el dueño (vault web) queda activo de una.
+- El relay guarda las llaves públicas del agente y del dueño al emparejar (recuperadas de las firmas) para que el sellador pueda cifrar.
+- Validaciones: nombre, `reason` de 10–280 caracteres, expiración ≤ 15 min en solicitudes, nonce de un solo uso por firmante, límite de lecturas y expiración del secreto, hash del blob firmado en seal y en approval.
+- `store.ts` usa un mapa en memoria si no hay `BLOB_READ_WRITE_TOKEN` fuera de producción: permite probar el relay sin red.
+- Pruebas: `mcp/scripts/secrets-relay-test.ts` contra `next dev`, **27 checks** (flujo completo + replay de nonce, firmas de terceros, blob cambiado, revocación, regresión de transferencias). `web/scripts/relay-test.mjs` sigue pasando.
+- Deuda: las escrituras en Vercel Blob no son atómicas; dos solicitudes simultáneas con el mismo nonce podrían pasar (aceptable en testnet).
 
 ---
 
@@ -166,7 +172,7 @@ Definir domain `{name: "PAP", version: "1", chainId: 133, verifyingContract: Age
 
 ### PAP-04 — Teléfono: tarjeta de aprobación de secretos
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Secretos / UX
 - **Depende de:** PAP-02, PAP-15
 
@@ -189,7 +195,12 @@ Extender `web/src/app/approve/[id]/page.tsx` para `type: "reveal"`. La tarjeta m
 - Firma de agente alterada → no se puede aprobar.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `/approve/[id]` maneja tres tipos: 💸 pago, 🔑 lectura (muestra el **reason** en un recuadro destacado, lecturas usadas y última lectura) y 🔒 sellado (máximo de lecturas, expiración, `grant`).
+- Al aprobar un reveal: Face ID → quita la capa del teléfono → `record()` on-chain (el contrato cuenta la lectura) → firma `RevealApproval` → resuelve con el blob interno. El teléfono nunca ve el texto plano.
+- Si el secreto está revocado, vencido o agotado (se lee `getGrant` on-chain), el botón de aprobar se desactiva y se explica por qué.
+- `lib/actions.ts` resume cualquier acción en una línea; lo usan la lista de pendientes, el historial y la pantalla del QR.
+- `phone-sim.mjs` aprueba seals y reveals (`PAP_SIM_NO_CHAIN=1` para correr sin cadena).
+- **Pendiente:** prueba manual en iPhone (la red de esta sesión no llega a HSK ni a producción).
 
 ---
 

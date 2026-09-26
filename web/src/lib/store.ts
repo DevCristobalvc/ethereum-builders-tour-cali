@@ -2,14 +2,24 @@
  * Relay state on Vercel Blob. Every state change is a NEW immutable blob under
  * `pap/<kind>/<id>/<seq>.json`; the latest one wins. This sidesteps CDN caching
  * (a fresh URL is never cached) and needs no database.
+ *
+ * Without BLOB_READ_WRITE_TOKEN outside production (local dev, CI, scripts) the same
+ * API runs on an in-memory map so the relay can be exercised offline.
  */
 import { put, list } from "@vercel/blob";
 
-export type Kind = "pair" | "request" | "agent";
+export type Kind = "pair" | "request" | "agent" | "secret" | "nonce";
+
+const memory = !process.env.BLOB_READ_WRITE_TOKEN && process.env.NODE_ENV !== "production";
+const mem = ((globalThis as { __papStore?: Map<string, unknown> }).__papStore ??= new Map<string, unknown>());
 
 const prefix = (kind: Kind, id: string) => `pap/${kind}/${id}/`;
 
 export async function write<T extends object>(kind: Kind, id: string, state: T): Promise<T> {
+  if (memory) {
+    mem.set(`${kind}/${id}`, structuredClone(state));
+    return state;
+  }
   const seq = Date.now().toString().padStart(14, "0");
   await put(`${prefix(kind, id)}${seq}.json`, JSON.stringify(state), {
     access: "public",
@@ -20,6 +30,7 @@ export async function write<T extends object>(kind: Kind, id: string, state: T):
 }
 
 export async function read<T>(kind: Kind, id: string): Promise<T | null> {
+  if (memory) return (structuredClone(mem.get(`${kind}/${id}`)) as T) ?? null;
   const { blobs } = await list({ prefix: prefix(kind, id), limit: 100 });
   if (!blobs.length) return null;
   const latest = blobs.sort((a, b) => (a.pathname < b.pathname ? 1 : -1))[0];
@@ -29,6 +40,12 @@ export async function read<T>(kind: Kind, id: string): Promise<T | null> {
 
 /** Latest state of every item of a kind (small scale only — demo). */
 export async function readAll<T>(kind: Kind, max = 200): Promise<T[]> {
+  if (memory)
+    return [...mem.entries()]
+      .filter(([k]) => k.startsWith(`${kind}/`))
+      .map(([, v]) => structuredClone(v) as T)
+      .reverse()
+      .slice(0, max);
   const { blobs } = await list({ prefix: `pap/${kind}/`, limit: 1000 });
   const byId = new Map<string, (typeof blobs)[number]>();
   for (const b of blobs) {

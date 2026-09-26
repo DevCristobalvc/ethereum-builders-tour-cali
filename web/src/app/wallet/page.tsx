@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { formatEther, formatUnits } from "viem";
 import { Agents } from "@/components/Agents";
 import { WalletGate } from "@/components/WalletGate";
-import { AddrLink, Button, Card, Notice, Row, Shell, Status, short } from "@/components/ui";
+import { AddrLink, Button, Card, Notice, Row, Shell, Status } from "@/components/ui";
 import { ADDRESSES, DEMO_TOKEN_DECIMALS, TOKEN_SYMBOL } from "@/lib/chain";
 import { gasBalance, tokenBalance } from "@/lib/onchain";
+import { summarize } from "@/lib/actions";
 import { api } from "@/lib/relay";
 import type { RequestState } from "@/lib/types";
 import { clearWallet, type StoredWallet } from "@/lib/wallet";
@@ -74,7 +75,7 @@ function Dashboard({ w }: { w: StoredWallet }) {
                 <Status s={r.status} />
               </div>
               <div className="text-sm text-muted">
-                Send <b className="text-foreground">{r.action.amount} {TOKEN_SYMBOL}</b> to {short(r.action.to)}
+                {summarize(r.action).icon} <b className="text-foreground">{summarize(r.action).title}</b> {summarize(r.action).detail}
               </div>
             </Link>
           ))}
@@ -90,7 +91,7 @@ function Dashboard({ w }: { w: StoredWallet }) {
             {history.map((r) => (
               <Link key={r.id} href={`/approve/${r.id}`} className="flex justify-between py-2 text-sm">
                 <span>
-                  {r.action.amount} {TOKEN_SYMBOL} → {short(r.action.to)}
+                  {summarize(r.action).icon} {summarize(r.action).title}
                 </span>
                 <Status s={r.status} />
               </Link>
