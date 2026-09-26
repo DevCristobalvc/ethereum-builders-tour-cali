@@ -9,6 +9,7 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 - `problem` = no se pudo resolver. Es **obligatorio** escribir el motivo y qué se intentó en el resumen.
 - Al cerrar un ticket se llena el **resumen post-desarrollo**: qué se hizo, decisiones, desviaciones del plan, deuda pendiente.
 - Commits y PRs referencian el ID: `feat(secrets): PAP-02 relay secret storage`.
+- Antes de cada commit que toque código: `npm run build` en `web/` y `mcp/`, y `forge test` en `contracts/`. El CI (`.github/workflows/ci.yml`) lo repite en cada push.
 
 ## Decisiones de diseño (base para todos los tickets)
 

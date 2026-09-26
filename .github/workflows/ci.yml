@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: web (build + lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Build (same command Vercel runs)
+        run: npm run build
+      # Pre-existing react-hooks errors on main; reported but not blocking until fixed.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+  mcp:
+    name: mcp (build + bundle in sync)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - name: Committed bundle matches source
+        run: git diff --exit-code -- dist/pap.mjs || (echo "::error::mcp/dist/pap.mjs is stale — run 'cd mcp && npm run build' and commit it" && exit 1)
+
+  contracts:
+    name: contracts (forge test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      # Fork tests skip themselves without --fork-url.
+      - run: forge test
