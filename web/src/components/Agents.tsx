@@ -1,14 +1,14 @@
 "use client";
-/** Paired agents with their on-chain visa, and the passport "stamps" (Paid events) each one has earned. */
+/** Paired agents with their on-chain payment visa and how many secrets each can ask for. */
 import { useEffect, useState } from "react";
 import { formatUnits } from "viem";
 import { ADDRESSES, DEMO_TOKEN_DECIMALS, TOKEN_SYMBOL } from "@/lib/chain";
-import { readGrant, readStamps, type Grant, type Stamp } from "@/lib/onchain";
+import { readGrant, type Grant } from "@/lib/onchain";
 import { api } from "@/lib/relay";
-import type { AgentRecord } from "@/lib/types";
-import { AddrLink, Card, Label, TxLink, short } from "./ui";
+import type { AgentRecord, SecretMeta } from "@/lib/types";
+import { AddrLink, Card } from "./ui";
 
-type Row = AgentRecord & { grant?: Grant; stamps?: Stamp[] };
+type Row = AgentRecord & { grant?: Grant; secrets?: number };
 
 export function Agents({ owner }: { owner: string }) {
   const [rows, setRows] = useState<Row[]>();
@@ -17,14 +17,17 @@ export function Agents({ owner }: { owner: string }) {
     let alive = true;
     const load = async () => {
       try {
-        const agents = await api<AgentRecord[]>(`/api/agents?owner=${owner}`);
+        const [agents, secrets] = await Promise.all([
+          api<AgentRecord[]>(`/api/agents?owner=${owner}`),
+          api<SecretMeta[]>(`/api/secrets?owner=${owner}`).catch(() => [] as SecretMeta[]),
+        ]);
         const token = ADDRESSES.DemoUSDT;
         const enriched = await Promise.all(
           agents.map(async (a) => {
-            if (!token || !a.agentId) return a as Row;
-            const id = BigInt(a.agentId);
-            const [grant, stamps] = await Promise.all([readGrant(id, token).catch(() => undefined), readStamps(id).catch(() => [])]);
-            return { ...a, grant, stamps } as Row;
+            const count = secrets.filter((s) => s.status === "active" && s.agentAddress.toLowerCase() === a.agentAddress.toLowerCase()).length;
+            if (!token || !a.agentId) return { ...a, secrets: count } as Row;
+            const grant = await readGrant(BigInt(a.agentId), token).catch(() => undefined);
+            return { ...a, grant, secrets: count } as Row;
           })
         );
         if (alive) setRows(enriched);
@@ -87,24 +90,9 @@ export function Agents({ owner }: { owner: string }) {
               </div>
             )}
 
-            <div>
-              <Label>Passport stamps</Label>
-              {!a.stamps?.length ? (
-                <p className="mt-1 text-sm text-muted">No payments yet.</p>
-              ) : (
-                <ul className="mt-1 divide-y divide-border">
-                  {a.stamps.slice(0, 8).map((s) => (
-                    <li key={s.txHash} className="flex items-center justify-between py-2 text-sm">
-                      <span>
-                        {fmt(s.amount)} {TOKEN_SYMBOL} → {short(s.to)}
-                        <span className="ml-1 text-xs text-muted">{s.by.toLowerCase() === owner.toLowerCase() ? "· you" : "· agent"}</span>
-                      </span>
-                      <TxLink hash={s.txHash} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <p className="text-sm text-muted">
+              🔑 {a.secrets ? `${a.secrets} sealed secret${a.secrets > 1 ? "s" : ""} it can ask for` : "no sealed secrets"}
+            </p>
           </Card>
         );
       })}

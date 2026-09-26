@@ -192,3 +192,20 @@ export async function revokeVisa(pk: Hex, agentId: bigint, scope: Hex) {
   if (rc.status !== "success") throw new Error("revoke reverted");
   return hash;
 }
+
+export type ReadStamp = { txHash: Hex; scope: Hex; by: Address; block: bigint };
+
+/** Every approved secret read (ActionRecorded on the given secret scopes). */
+export async function readSecretStamps(agentId: bigint, scopes: Hex[]): Promise<ReadStamp[]> {
+  if (!scopes.length) return [];
+  const logs = await pub.getLogs({
+    address: need("AgentPassport"),
+    event: parseAbiItem(
+      "event ActionRecorded(uint256 indexed agentId, bytes32 indexed scope, uint256 amount, bytes32 indexed ref, address recordedBy)"
+    ),
+    args: { agentId, scope: scopes },
+    fromBlock: PASSPORT_DEPLOY_BLOCK,
+    toBlock: "latest",
+  });
+  return logs.map((l) => ({ txHash: l.transactionHash, scope: l.args.scope!, by: l.args.recordedBy!, block: l.blockNumber })).reverse();
+}

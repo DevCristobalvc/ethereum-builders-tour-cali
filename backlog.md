@@ -30,12 +30,12 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 | PAP-04 | Teléfono: tarjeta de aprobación de secretos | Secretos / UX | PAP-02, PAP-15 | done |
 | PAP-05 | MCP: tool `pap_secret` | Secretos | PAP-02 | done |
 | PAP-06 | CLI: `pap seal` y `pap secret get` | Secretos | PAP-02 | done |
-| PAP-07 | Visa y auditoría on-chain para secretos | Secretos | PAP-04 | to do |
+| PAP-07 | Visa y auditoría on-chain para secretos | Secretos | PAP-04 | done |
 | PAP-08 | JSON-RPC 2.0: endpoint `/api/rpc` con namespace `pap_*` | JSON-RPC | PAP-02 | to do |
 | PAP-09 | Signer local EIP-1193 (`pap rpc`) | JSON-RPC | PAP-08 | to do |
 | PAP-10 | `eth_getEncryptionPublicKey` / `eth_decrypt` sobre doble firma | JSON-RPC | PAP-09 | to do |
 | PAP-11 | Métodos `wallet_*` (EIP-7715, EIP-5792, capabilities) | JSON-RPC | PAP-09 | to do |
-| PAP-12 | `/wallet`: pestañas Agentes · Bóveda · Sellos | UX | PAP-02, PAP-15 | to do |
+| PAP-12 | `/wallet`: pestañas Agentes · Bóveda · Sellos | UX | PAP-02, PAP-15 | done |
 | PAP-13 | Notificaciones push en la PWA | UX | PAP-04 | to do |
 | PAP-14 | `/vault/new`: sellar desde el navegador | UX | PAP-01, PAP-02 | to do |
 | PAP-15 | Mockups de aprobación y Bóveda | UX | — | to do |
@@ -272,7 +272,7 @@ Binario `pap` en `mcp/` (`bin` en `package.json`, mismo bundle). `pap seal <name
 
 ### PAP-07 — Visa y auditoría on-chain para secretos
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Secretos
 - **Depende de:** PAP-04
 
@@ -293,7 +293,12 @@ Sin cambiar contratos. Al sellar, el teléfono hace `grant(agentId, keccak256("s
 - E2E: N+1 reveals → el último falla con `LimitExceeded`.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- Sin cambios en contratos. Al aprobar un seal el teléfono hace `grant(agentId, keccak256("secret:"+name), maxLecturas, expiry)`; cada reveal aprobado hace `record(agentId, scope, 1, keccak256("pap:reveal:"+requestId))` **antes** de entregar el blob, así que si el contrato revierte (`LimitExceeded`, `GrantExpired`, `NoGrant`) no se entrega nada.
+- La PWA lee `getGrant` y desactiva la aprobación si la visa no permite otra lectura; el relay también cuenta lecturas (defensa en profundidad).
+- Revocar desde la Bóveda = `revoke()` on-chain + `DELETE` en el relay.
+- Las lecturas aparecen en **Sellos** (eventos `ActionRecorded` filtrados por los scopes de los secretos).
+- Tests Foundry nuevos en `contracts/test/SecretVisa.t.sol` (límite, expiración, revocación, scopes independientes, permisos): pasan en el CI.
+- Nota: la llave del agente también puede llamar `record()` sobre su propio scope y gastar lecturas; solo se perjudica a sí misma, no obtiene el secreto.
 
 ---
 
@@ -457,7 +462,7 @@ _Pendiente._
 
 ### PAP-12 — `/wallet`: pestañas Agentes · Bóveda · Sellos
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** UX
 - **Depende de:** PAP-02, PAP-15
 
@@ -478,7 +483,11 @@ Reorganizar `web/src/app/wallet/page.tsx` en tres pestañas. **Agentes** (existe
 - Revocar → el siguiente reveal del agente falla.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- `/wallet` con barra inferior fija (🤖 Agentes · 🔑 Bóveda · 🛂 Sellos), alcanzable con el pulgar y con `safe-area-inset-bottom` para iPhone. Aprobaciones pendientes siempre visibles arriba.
+- `components/Vault.tsx`: secretos por agente, lecturas usadas/permitidas (on-chain si hay visa), expiración, última lectura; **Revocar** (Face ID → `revoke` + `DELETE`) y **Rotar** (revoca y guía para `pap seal` con el valor nuevo).
+- `components/Stamps.tsx`: pagos 💸 y lecturas 🔑 de HSK en una sola línea de tiempo, indicando si ejecutó el humano o el agente. `Agents.tsx` muestra la visa y cuántos secretos puede pedir cada agente.
+- Arreglos encontrados al revisar capturas a 390px: los errores largos rompían el ancho (ahora parten línea), y si fallaba el RPC desaparecían las aprobaciones pendientes (ahora cada lectura es independiente).
+- Revisado con capturas de Playwright a 390px contra el relay local. **Pendiente:** prueba manual en iPhone.
 
 ---
 

@@ -69,7 +69,7 @@ export function Row({ k, v, mono = true }: { k: string; v: ReactNode; mono?: boo
   return (
     <div className="flex items-start justify-between gap-3 py-2 text-sm border-t border-border first:border-0">
       <span className="text-muted">{k}</span>
-      <span className={`text-right break-all ${mono ? "font-mono text-[13px]" : ""}`}>{v}</span>
+      <span className={`text-right ${mono ? "break-all font-mono text-[13px]" : "break-words"}`}>{v}</span>
     </div>
   );
 }
@@ -98,7 +98,7 @@ export function Status({ s }: { s: string }) {
 export function Notice({ children, kind = "info" }: { children: ReactNode; kind?: "info" | "error" | "ok" }) {
   const c =
     kind === "error" ? "bg-bad/5 text-bad" : kind === "ok" ? "bg-ok/10 text-ok" : "bg-background text-muted border border-border";
-  return <div className={`rounded-2xl px-4 py-3 text-sm ${c}`}>{children}</div>;
+  return <div className={`rounded-2xl px-4 py-3 text-sm break-words [overflow-wrap:anywhere] ${c}`}>{children}</div>;
 }
 
 export function Label({ children }: { children: ReactNode }) {

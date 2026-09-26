@@ -3,6 +3,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatEther, formatUnits } from "viem";
 import { Agents } from "@/components/Agents";
+import { Stamps } from "@/components/Stamps";
+import { Vault } from "@/components/Vault";
 import { WalletGate } from "@/components/WalletGate";
 import { AddrLink, Button, Card, Notice, Row, Shell, Status } from "@/components/ui";
 import { ADDRESSES, DEMO_TOKEN_DECIMALS, TOKEN_SYMBOL } from "@/lib/chain";
@@ -28,16 +30,20 @@ function Dashboard({ w }: { w: StoredWallet }) {
   const [usdt, setUsdt] = useState<bigint>();
   const [reqs, setReqs] = useState<RequestState[]>([]);
   const [err, setErr] = useState<string>();
+  const [tab, setTab] = useState<Tab>("agents");
 
   const refresh = async () => {
-    try {
-      const [g, r] = await Promise.all([gasBalance(w.address), api<RequestState[]>(`/api/requests?owner=${w.address}`)]);
-      setGas(g);
-      setReqs(r);
-      if (ADDRESSES.DemoUSDT) setUsdt(await tokenBalance(w.address));
-    } catch (e) {
-      setErr((e as Error).message);
-    }
+    // Independent reads: a flaky RPC must not hide pending approvals from the relay.
+    const [g, r, u] = await Promise.allSettled([
+      gasBalance(w.address),
+      api<RequestState[]>(`/api/requests?owner=${w.address}`),
+      ADDRESSES.DemoUSDT ? tokenBalance(w.address) : Promise.resolve(undefined),
+    ]);
+    if (g.status === "fulfilled") setGas(g.value);
+    if (r.status === "fulfilled") setReqs(r.value);
+    if (u.status === "fulfilled") setUsdt(u.value);
+    const failed = [g, r, u].find((x) => x.status === "rejected") as PromiseRejectedResult | undefined;
+    setErr(failed ? String((failed.reason as Error)?.message ?? failed.reason).split("\n")[0] : undefined);
   };
   useEffect(() => {
     refresh();
@@ -82,23 +88,28 @@ function Dashboard({ w }: { w: StoredWallet }) {
         </div>
       </Card>
 
-      <Agents owner={w.address} />
-
-      {history.length > 0 && (
-        <Card>
-          <h2 className="font-semibold">History</h2>
-          <div className="mt-2 flex flex-col divide-y divide-border">
-            {history.map((r) => (
-              <Link key={r.id} href={`/approve/${r.id}`} className="flex justify-between py-2 text-sm">
-                <span>
-                  {summarize(r.action).icon} {summarize(r.action).title}
-                </span>
-                <Status s={r.status} />
-              </Link>
-            ))}
-          </div>
-        </Card>
+      {tab === "agents" && (
+        <>
+          <Agents owner={w.address} />
+          {history.length > 0 && (
+            <Card>
+              <h2 className="font-semibold">History</h2>
+              <div className="mt-2 flex flex-col divide-y divide-border">
+                {history.map((r) => (
+                  <Link key={r.id} href={`/approve/${r.id}`} className="flex justify-between py-2 text-sm">
+                    <span>
+                      {summarize(r.action).icon} {summarize(r.action).title}
+                    </span>
+                    <Status s={r.status} />
+                  </Link>
+                ))}
+              </div>
+            </Card>
+          )}
+        </>
       )}
+      {tab === "vault" && <Vault w={w} />}
+      {tab === "stamps" && <Stamps owner={w.address} />}
 
       {err && <Notice kind="error">{err}</Notice>}
       <Button
@@ -112,6 +123,39 @@ function Dashboard({ w }: { w: StoredWallet }) {
       >
         Reset wallet
       </Button>
+      <TabBar tab={tab} onChange={setTab} pending={pending.length} />
+    </>
+  );
+}
+
+type Tab = "agents" | "vault" | "stamps";
+
+/** Thumb-reachable bottom navigation for the three views of the passport. */
+function TabBar({ tab, onChange, pending }: { tab: Tab; onChange: (t: Tab) => void; pending: number }) {
+  const items: { id: Tab; icon: string; label: string }[] = [
+    { id: "agents", icon: "🤖", label: "Agents" },
+    { id: "vault", icon: "🔑", label: "Vault" },
+    { id: "stamps", icon: "🛂", label: "Stamps" },
+  ];
+  return (
+    <>
+      <div className="h-16" aria-hidden />
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+        <div className="mx-auto grid max-w-md grid-cols-3">
+          {items.map((it) => (
+            <button
+              key={it.id}
+              onClick={() => onChange(it.id)}
+              aria-current={tab === it.id ? "page" : undefined}
+              className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium ${tab === it.id ? "text-foreground" : "text-muted"}`}
+            >
+              <span className="text-lg leading-none">{it.icon}</span>
+              {it.label}
+              {it.id === "agents" && pending > 0 && <span className="sr-only">{pending} pending</span>}
+            </button>
+          ))}
+        </div>
+      </nav>
     </>
   );
 }

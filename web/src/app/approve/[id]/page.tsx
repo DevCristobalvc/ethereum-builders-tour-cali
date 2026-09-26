@@ -136,7 +136,7 @@ function Approve({ id, w }: { id: string; w: StoredWallet }) {
               mono={false}
             />
             {secret?.lastReadAt && <Row k="Last read" v={new Date(secret.lastReadAt).toLocaleString()} mono={false} />}
-            <Row k="Unlocks" v="Your layer only — the value stays encrypted to the agent" mono={false} />
+            <Row k="Unlocks" v="Your layer only (the value stays encrypted to the agent)" mono={false} />
           </>
         )}
         {a.type === "seal" && (
