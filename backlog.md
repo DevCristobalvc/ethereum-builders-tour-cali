@@ -43,7 +43,7 @@ Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una
 | PAP-17 | Skills `pap-payments`, `pap-gate`, `pap-onboarding`, `pap-rpc` | Skills | PAP-09 | done |
 | PAP-18 | Plugin de Claude Code + `docs/AGENTS.md` | Skills | PAP-16, PAP-17 | done |
 | PAP-19 | Documentación: arquitectura de secretos y modelo de amenaza | Docs | PAP-07 | done |
-| PAP-20 | Investigación: políticas automáticas sin Face ID | Secretos | PAP-07 | to do |
+| PAP-20 | Investigación: políticas automáticas sin Face ID | Secretos | PAP-07 | done |
 | PAP-21 | Referencia Hermes Agent + storyboard de la landing | Landing | — | to do |
 | PAP-22 | Landing narrativa con animaciones por scroll | Landing | PAP-21 | to do |
 | PAP-23 | Diagrama animado "Cómo funciona" | Landing | PAP-21 | to do |
@@ -304,7 +304,7 @@ Sin cambiar contratos. Al sellar, el teléfono hace `grant(agentId, keccak256("s
 
 ### PAP-20 — Investigación: políticas automáticas sin Face ID
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Secretos
 - **Depende de:** PAP-07
 
@@ -321,7 +321,10 @@ Explorar cómo permitir "leer sin preguntar dentro de la visa" sin romper la dob
 - N/A (investigación). Si hay prototipo, un script que lo demuestre.
 
 **Resumen post-desarrollo**
-_Pendiente._
+- Documento `docs/AUTONOMOUS_SECRETS.md` con 5 opciones evaluadas: desbloquear una vez (descartada: equivale a entregar la key), teléfono que responde solo (descartada: iOS no ejecuta PWAs en segundo plano), **custodio en TEE** que llama `record()` antes de entregar, red de descifrado por umbral con condición `canAct`, y proxy de credenciales (la key nunca sale).
+- **Recomendación:** custodio en TEE como opción por secreto ("autónomo hasta <fecha>"), en paralelo proxy de credenciales para APIs HTTP; red por umbral más adelante, cuando soporte condiciones en HashKey Chain.
+- Hallazgo: `canAct` es una *view*; en cualquier opción alguien tiene que llamar `record()` para que las lecturas se **gasten** y no solo se verifiquen.
+- Sin prototipo: cada opción requiere infraestructura fuera del repo (enclave o red externa).
 
 ---
 
