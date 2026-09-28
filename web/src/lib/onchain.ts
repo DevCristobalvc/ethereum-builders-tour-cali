@@ -13,14 +13,15 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { nonceManager, privateKeyToAccount } from "viem/accounts";
 import { ABI, ADDRESSES, DEMO_TOKEN_DECIMALS, hskTestnet, transferScope } from "./chain";
 import { revealRef, secretScope } from "./pap-core";
 
 export const pub = createPublicClient({ chain: hskTestnet, transport: http() });
 
 export function walletFor(pk: Hex) {
-  const account = privateKeyToAccount(pk);
+  // Local nonces: the load-balanced RPC can return a stale nonce right after a receipt.
+  const account = privateKeyToAccount(pk, { nonceManager });
   return { account, client: createWalletClient({ account, chain: hskTestnet, transport: http() }) };
 }
 

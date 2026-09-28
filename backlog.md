@@ -929,3 +929,152 @@ Sección "Secrets" en `docs/ARCHITECTURE.md` (flujo, formato de blob, EIP-712, v
 - `docs/SECURITY.md`: **Sealed secrets — threat model** con garantías (2-de-2 criptográfico, ligado a agente + nombre, firmas de un solo uso, límites on-chain antes de entregar) y una lista explícita de lo que **no** protege (uso después de entregar, máquina del agente comprometida, humano que aprueba sin leer, teléfono comprometido, disponibilidad del relay, carreras de nonce, `record()` del agente, metadatos).
 - `README.md`: sección "Sealed secrets (iteration 4)", instalación del plugin, cómo sellar, estructura del repo y fila 4 en el roadmap.
 - **Pendiente:** revisión por alguien del equipo que no haya implementado la feature.
+
+---
+
+## Épica: QA y pulido (post-hackathon)
+
+### PAP-29 — Pasada de pruebas completa
+
+- **Estado:** done
+- **Épica:** QA
+- **Depende de:** —
+
+**Descripción**
+Correr todas las suites del repo (lint, typecheck, build, Foundry + fork, unit del MCP, integración contra relay local en memoria, E2E con la CLI y el MCP, E2E on-chain contra producción, gate, push, UI en navegador) y registrar lo que falla.
+
+**Criterios de aceptación**
+- Cada suite corrida con su resultado anotado aquí; cada fallo real tiene ticket.
+
+**Pruebas**
+- `forge test` (+ `--fork-url hashkey_testnet`), `mcp: npm test`, `mcp/scripts/*`, `web/scripts/*`, `next build`, `eslint`, `tsc`.
+
+**Comentarios**
+- Visas demo de los agentes #4 y #6 expiradas en testnet → `Fork.t.sol` (1 test) y `gate-test.mjs` fallan por datos, no por código.
+- `secrets-e2e.mjs` asumía `/` como separador de ruta (fallaba en Windows) → arreglado.
+- `eslint`: 5 errores `react-hooks/purity` y `set-state-in-effect` (`approve/[id]`, `wallet`, `Agents`, `WalletGate`) → PAP-32.
+
+**Resumen post-desarrollo (2026-09-28)**
+
+| Suite | Resultado |
+|---|---|
+| `tsc` web + mcp | ok |
+| `next build` | ok (25 rutas) |
+| `eslint` web | 5 errores, 1 warning → PAP-32 |
+| `forge test` | 37 pass, 3 skip (fork) |
+| `forge test --fork-url hashkey_testnet` | 2 pass, 1 fail `GrantExpired` (visa del agente #4 vencida; dato, no código) |
+| `mcp: npm test` (crypto, EIP-712) | 10/10 |
+| bundles `mcp/dist`, `plugin/`, `pap-core`, ABIs | sin drift |
+| `rpc-test.ts` local y producción | 18/18 y 18/18 |
+| `secrets-relay-test.ts` | 27/27 |
+| `secrets-e2e.mjs` (CLI + MCP) | 11/11 tras arreglar el separador de ruta |
+| `rpc-signer-test.mjs` (`pap rpc`, EIP-1193/5792/7715) | 20/20 |
+| `relay-test.mjs` | ok |
+| `push-test.ts` (Web Push) | 10/10 |
+| `gate-test.mjs` local y producción | falla: visa del agente #6 vencida; la lógica rechaza con la razón correcta |
+| `e2e.mjs` on-chain contra producción | OK tras PAP-30 (agente #11: onboarding 4 txs, pago 10, 500 → `LimitExceeded`, rechazo, gate `ACCESS GRANTED`) |
+| Sondas de API con inputs inválidos (producción) | 4xx correctos; hallazgos → PAP-33, PAP-34 |
+| `claude plugin validate` (plugin + marketplace) | ok |
+| Navegador: landing, `/wallet`, `/approve`, `/show` | sin errores propios en consola, 0 imágenes rotas; 15 emojis (PAP-31); links rotos a `main` (PAP-36); `/show` con id inexistente (PAP-35) |
+| Lighthouse producción | mobile 89 / 100 / 100 / 100, desktop 99 / 100 / 100 / 100, CLS 0 |
+
+### PAP-30 — Carrera de nonce en txs consecutivas del teléfono
+
+- **Estado:** done
+- **Épica:** QA
+- **Depende de:** —
+
+**Descripción**
+El RPC de HSK testnet está balanceado; justo después de un receipt, otro nodo puede devolver el nonce viejo y la siguiente tx choca con "replacement transaction underpriced". Pasa en el onboarding (4 txs seguidas) de la PWA y de `phone-sim.mjs`. Fix: `nonceManager` de viem en la cuenta, para que el nonce se lleve localmente.
+
+**Criterios de aceptación**
+- `mcp/scripts/e2e.mjs` contra producción pasa completo.
+- El onboarding de la PWA usa la misma cuenta con `nonceManager`.
+
+**Pruebas**
+- `node mcp/scripts/e2e.mjs` (reproducía el fallo en `faucet()` 2 de 2 veces).
+
+**Resumen post-desarrollo**
+- `privateKeyToAccount(pk, { nonceManager })` en `web/src/lib/onchain.ts` (PWA) y `web/scripts/phone-sim.mjs`. Con el fix, `e2e.mjs` pasa completo contra producción.
+
+### PAP-31 — Landing con estilo white paper
+
+- **Estado:** to do
+- **Épica:** Landing
+- **Depende de:** PAP-22 a PAP-28
+
+**Descripción**
+Hacer la landing más profesional, tipo white paper: sin emojis, tipografía serif editorial para títulos y cuerpo legible, paleta sobria (tinta sobre papel, un solo color de acento), menos ornamento.
+
+**Criterios de aceptación**
+- 0 emojis en la landing (verificado con búsqueda en el código y en el HTML servido).
+- Nueva tipografía y paleta aplicadas en claro y oscuro; contraste AA.
+- Lighthouse igual o mejor que PAP-28.
+
+**Pruebas**
+- Grep de emojis en `web/src`; revisión visual desktop y móvil; Lighthouse.
+
+### PAP-32 — Errores de lint de React Compiler
+
+- **Estado:** to do
+- **Épica:** QA
+- **Depende de:** —
+
+**Descripción**
+Resolver los 5 errores de `eslint` (`Date.now()` durante el render, `setState` síncrono en effects) sin cambiar comportamiento.
+
+**Criterios de aceptación**
+- `npx eslint .` en `web/` sin errores.
+
+### PAP-33 — `/api/fund` sin límite: se puede vaciar el funder
+
+- **Estado:** to do
+- **Épica:** QA / Seguridad
+- **Depende de:** —
+
+**Descripción**
+`POST /api/fund` envía 0.002 HSK a cualquier dirección con saldo bajo, sin firma ni rate limit. Con direcciones nuevas en bucle alguien vacía la wallet del funder y el onboarding deja de funcionar para usuarios reales. Además, pedidos concurrentes chocan en el nonce (mismo problema que PAP-30).
+
+**Criterios de aceptación**
+- Solo se fondea una dirección que firmó el pedido y que tiene un pairing pendiente o aprobado en el relay; máximo una vez por dirección.
+- Rate limit por IP.
+- Cuenta del funder con `nonceManager`.
+
+**Pruebas**
+- Dirección aleatoria sin pairing → 403; segunda llamada para la misma dirección → no fondea.
+
+### PAP-34 — Tope al tamaño de batch en `/api/rpc`
+
+- **Estado:** to do
+- **Épica:** QA / Seguridad
+- **Depende de:** —
+
+**Descripción**
+Un batch JSON-RPC de 201 llamadas se procesa entero. Poner un máximo (por ejemplo 50) y responder `-32600` por encima.
+
+**Criterios de aceptación**
+- Batch > límite → un solo error `-32600`; `rpc-test.ts` cubre el caso.
+
+### PAP-35 — `/show` y `/approve` con id inexistente
+
+- **Estado:** to do
+- **Épica:** UX
+- **Depende de:** —
+
+**Descripción**
+`/show/request/<id inexistente>` muestra el QR y "Waiting for your phone…" para siempre. Debe mostrar "Este pedido no existe o expiró".
+
+**Criterios de aceptación**
+- id desconocido → mensaje claro, sin QR ni spinner.
+
+### PAP-36 — Mergear la rama a `main` (links rotos en la landing)
+
+- **Estado:** to do
+- **Épica:** QA
+- **Depende de:** PAP-29, PAP-30
+
+**Descripción**
+`main` va 19+ commits detrás de lo que está en producción. La landing enlaza a `blob/main/docs/RPC.md`, `docs/AGENTS.md` y al ancla `#sealed-secrets--threat-model` de SECURITY, que no existen en `main` → 404 en GitHub.
+
+**Criterios de aceptación**
+- PR mergeado; los 14 links externos de la landing responden 200.

@@ -11,7 +11,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { concatHex, createPublicClient, createWalletClient, http, keccak256, maxUint256, parseEventLogs, parseUnits, stringToHex, toBytes } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { nonceManager, privateKeyToAccount } from "viem/accounts";
 import { blobHash, peelOwnerLayer, revealRef, secretScope, typedData } from "../src/lib/pap-core.ts";
 
 const envFile = new URL("../.env.local", import.meta.url);
@@ -26,7 +26,8 @@ const PK = process.env.PHONE_PRIVATE_KEY ?? env.TEST_PRIVATE_KEY;
 const abis = JSON.parse(readFileSync(new URL("../src/generated/abis.json", import.meta.url), "utf8"));
 
 const chain = { id: 133, name: "HSK Testnet", nativeCurrency: { name: "HSK", symbol: "HSK", decimals: 18 }, rpcUrls: { default: { http: ["https://testnet.hsk.xyz"] } } };
-const account = privateKeyToAccount(PK);
+// Local nonces: the load-balanced RPC can return a stale nonce right after a receipt.
+const account = privateKeyToAccount(PK, { nonceManager });
 const pub = createPublicClient({ chain, transport: http() });
 const wallet = createWalletClient({ account, chain, transport: http() });
 

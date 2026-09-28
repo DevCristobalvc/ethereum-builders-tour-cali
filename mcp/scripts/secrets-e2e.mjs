@@ -102,7 +102,7 @@ check("CLI rejection exits with code 4 and prints nothing", r.code === 4 && r.st
 
 // read limit (3): two reads used (MCP + exec) → one left, then the relay refuses
 r = await cliAsync(["secret", "get", "openai", "--reason", "Third and last allowed read"], (id) => phone("approve", id));
-check("third read allowed (file path printed)", r.code === 0 && r.stdout.trim().endsWith("/secrets/openai"), JSON.stringify(r));
+check("third read allowed (file path printed)", r.code === 0 && /[\\/]secrets[\\/]openai$/.test(r.stdout.trim()), JSON.stringify(r));
 r = cli(["secret", "get", "openai", "--reason", "Fourth read should be refused"]);
 check("read limit enforced by the relay", r.status === 1 && /read limit/.test(r.stderr), r.stderr);
 
