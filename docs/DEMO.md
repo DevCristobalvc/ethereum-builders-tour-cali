@@ -35,7 +35,7 @@ If the iPhone cannot be mirrored: point the laptop camera at the phone and keep 
 
 ## Step by step (who does what)
 
-**Narrator: Cristóbal · Keyboard: Juan · Phone: Cristóbal (or William)**
+**Cristóbal runs everything: narration, keyboard and phone.** (Rehearse the hand-off from laptop to phone.)
 
 ### 1. Context (10 s)
 Terminal already open with Claude Code in the repo. Say: *"This is Claude Code, a real agent, with no private key configured."*
@@ -43,7 +43,7 @@ Terminal already open with Claude Code in the repo. Say: *"This is Claude Code, 
 Optional: show `cat .env` → there is no `PRIVATE_KEY`. Technical judges notice this detail.
 
 ### 2. Ask the agent (10 s)
-Juan types in Claude Code:
+Type in Claude Code:
 
 ```
 Pay 5 demoUSDT to oracle for the price query.

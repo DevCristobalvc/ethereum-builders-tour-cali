@@ -145,6 +145,6 @@ CI runs on every push (Foundry, web build + lint, MCP bundle in sync). The last 
 
 ## Team
 
-Cristóbal Valencia — [@DevCristobalvc](https://github.com/DevCristobalvc) (product, pitch, docs) · Juan (`web/`, `mcp/`) · William (`contracts/`, HSK deploy)
+Built by **Cristóbal Valencia** — [@DevCristobalvc](https://github.com/DevCristobalvc) — with AI coding agents as teammates, the same kind of agent PAP is built for. "Juan" (`web/`, `mcp/`) and "William" (`contracts/`, HSK deploy) are Claude Code agents; Cristóbal owns the product, the decisions and every key.
 
 MIT

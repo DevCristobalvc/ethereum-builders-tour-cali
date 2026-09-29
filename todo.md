@@ -14,6 +14,8 @@ Pitch: **"Your agent has a passport. You grant it visas from your phone. Service
 
 Split: **juan** = `web/` + `mcp/` · **william** = `contracts/` + HSK deploy · **cristóbal** = README, todo, pitch, demo, submission.
 
+> "juan" and "william" are AI coding agents (Claude Code) working in parallel under Cristóbal's direction; Cristóbal is the only human on the team.
+
 ---
 
 ## Reused from v1 (done)
