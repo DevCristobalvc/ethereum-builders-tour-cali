@@ -66,6 +66,7 @@ Continuation of `todo.md` (hackathon). Goal: the human can seal a credential (AP
 | PAP-39 | English-only repository | Docs | — | done |
 | PAP-40 | Final delivery polish | Docs / QA | PAP-39 | done |
 | PAP-41 | Devfolio submission + demo video | Docs | PAP-40 | done |
+| PAP-42 | Demo video on YouTube, linked everywhere | Docs / Landing | PAP-41 | done |
 
 **Suggested order (secrets, JSON-RPC, UX, skills):** PAP-01 → PAP-03 → PAP-15 → PAP-02 → PAP-05 / PAP-06 → PAP-04 → PAP-07 → PAP-16 → PAP-08 → PAP-09 → PAP-10 / PAP-11 → PAP-12 → PAP-13 → PAP-14 → PAP-17 → PAP-18 → PAP-19 → PAP-20.
 
@@ -1208,3 +1209,22 @@ Publish the project on Devfolio (EAG Global Buildathon) with real screenshots, l
 - Profile bio rewritten in English. The individual application must be submitted in the browser (the API answers "This event requires the browser submission workflow"); the final step, accepting the Terms & Conditions and Code of Conduct, is left to the owner.
 - `docs/demo.mp4` (2:48, 1280×720, English narration with an en-US neural voice, subtitles in English with Spanish below): recorded with Playwright while `mcp/scripts/e2e.mjs` ran against production (agent #14 paired on-chain, payment of 10, 500 reverts with `LimitExceeded`, rejection, gate 200). The phone is `phone-sim.mjs`, not a real iPhone; a take with a real iPhone and Face ID is still recommended.
 - App icons redrawn in the white-paper palette (PR #4); `favicon.ico` frames must be RGBA or the Next.js build fails.
+
+### PAP-42 — Demo video on YouTube, linked everywhere
+
+- **Status:** done
+- **Epic:** Docs / Landing
+- **Depends on:** PAP-41
+
+**Description**
+The narrated demo is on YouTube (https://youtu.be/MEXjbFrVGXo, unlisted). Give it visibility wherever a judge lands.
+
+**Acceptance criteria**
+- Devfolio: project video + a link at the top of "The problem it solves".
+- README: clickable thumbnail at the top. SUBMISSION: video link filled in.
+- Landing: "Watch the 3-minute demo" under the hero buttons and a "Watch the demo" button in the footer.
+
+**Post-development summary**
+- Video checked through YouTube oEmbed (embeddable, correct title, channel @DevCristobalVC).
+- All four places updated; the landing change is two links, no layout change.
+

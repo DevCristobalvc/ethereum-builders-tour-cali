@@ -8,7 +8,11 @@ Built at **Ethereum Builders Tour: Cali** (Sep 19–20, 2026 · Ethereum Applica
 
 [![The PAP landing: a white paper with the abstract and Figure 1](docs/img/landing/desktop-hero.png)](https://pap.devcristobalvc.com)
 
-**Demo video (2:48, English narration, English + Spanish subtitles):** [`docs/demo.mp4`](docs/demo.mp4) — a real agent against production and HashKey Chain testnet: pairing, a payment approved from the phone, the transaction on the explorer, a 500 demoUSDT payment reverted with `LimitExceeded()`, and the x402-style gate. The phone is simulated by `web/scripts/phone-sim.mjs`, which signs exactly like the PWA.
+### Watch the demo (3 min)
+
+[![Passport Agent Protocol demo on YouTube](https://img.youtube.com/vi/MEXjbFrVGXo/maxresdefault.jpg)](https://youtu.be/MEXjbFrVGXo)
+
+**[https://youtu.be/MEXjbFrVGXo](https://youtu.be/MEXjbFrVGXo)** · English narration, English + Spanish subtitles (also in the repo: [`docs/demo.mp4`](docs/demo.mp4)) — a real agent against production and HashKey Chain testnet: pairing, a payment approved from the phone, the transaction on the explorer, a 500 demoUSDT payment reverted with `LimitExceeded()`, and the x402-style gate. The phone is simulated by `web/scripts/phone-sim.mjs`, which signs exactly like the PWA.
 
 ## The problem
 

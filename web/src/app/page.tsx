@@ -26,6 +26,7 @@ const CONTRACTS: { name: string; key: keyof typeof ADDRESSES; role: string }[] =
   { name: "Groth16Verifier", key: "Groth16Verifier", role: "ZK verifier (roadmap)" },
 ];
 
+const DEMO_VIDEO = "https://youtu.be/MEXjbFrVGXo";
 const REFERENCES: [string, string][] = [
   ["Architecture", "docs/ARCHITECTURE.md"],
   ["JSON-RPC interface", "docs/RPC.md"],
@@ -96,6 +97,12 @@ export default function Landing() {
           <div className="mt-8">
             <HeroCTA />
           </div>
+          <p className="mt-5 text-[15px]">
+            <a href="https://youtu.be/MEXjbFrVGXo" target="_blank" rel="noreferrer" className="text-accent underline decoration-accent/40 underline-offset-4 hover:decoration-accent">
+              Watch the 3-minute demo
+            </a>
+            <span className="text-muted"> · a real agent on HashKey Chain testnet</span>
+          </p>
         </div>
         <figure>
           <div className="relative aspect-[4/3] overflow-hidden rounded-sm border border-border bg-paper-deep">
@@ -240,6 +247,9 @@ export default function Landing() {
                 </Link>
                 <a href={REPO} target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center rounded-md border border-foreground/25 px-6 text-[15px] font-medium text-foreground hover:bg-surface">
                   Source on GitHub
+                </a>
+                <a href={DEMO_VIDEO} target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center rounded-md border border-foreground/25 px-6 text-[15px] font-medium text-foreground hover:bg-surface">
+                  Watch the demo
                 </a>
               </div>
             </div>
