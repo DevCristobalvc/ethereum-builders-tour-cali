@@ -1,129 +1,129 @@
-# Demo en vivo — Passport Agent Protocol
+# Live demo — Passport Agent Protocol
 
-> Duración objetivo: **75 segundos** de demo dentro del pitch de 3 min. Ensayar mínimo 3 veces el domingo antes de las 13:30.
+> Target length: **75 seconds** of demo inside the 3-minute pitch. Rehearse at least 3 times before going on stage.
 
-## Qué se ve en pantalla
+## What is on screen
 
-| Pantalla | Qué muestra |
+| Screen | What it shows |
 |---|---|
-| Laptop (proyector) | Terminal con Claude Code a fuente grande (>= 18 pt) + pestaña `/show/request/:id` (QR grande, el MCP la abre solo) + pestaña del explorer `testnet-explorer.hskchain.net` |
-| iPhone (espejado con QuickTime / cámara del laptop apuntando) | PWA `pap.devcristobalvc.com` |
+| Laptop (projector) | Terminal with Claude Code at a large font (>= 18 pt) + the `/show/request/:id` tab (big QR, the MCP opens it by itself) + an explorer tab on `testnet-explorer.hskchain.net` |
+| iPhone (mirrored with QuickTime, or the laptop camera pointed at it) | The PWA at `pap.devcristobalvc.com` |
 
-Si no hay forma de espejar el iPhone: apuntar la cámara del laptop al teléfono y dejar la ventana de la cámara en un cuarto de la pantalla.
-
----
-
-## Checklist previo (Sun 12:30, antes de subir)
-
-- [ ] Laptop cargado, modo "no molestar", brillo al máximo, fuente de terminal grande, tema claro
-- [ ] iPhone cargado, brillo al máximo, modo avión **apagado**, datos móviles activos (no depender del wifi de ICESI)
-- [ ] PWA instalada en el iPhone (Safari → Compartir → Añadir a inicio), passkey creada, sesión abierta
-- [ ] Dirección del teléfono tiene **HSK para gas** (`/api/fund` da 0.002 HSK al crear la wallet; si se acabó, faucet https://hskchain.net/faucet) y **demoUSDT** (el onboarding llama `faucet()` = 1000)
-- [ ] `pap_connect` hecho el sábado: onboarding de 4 txs desde el teléfono (`register` → `faucet` → `approve` → `grant` con límite 100) — nada de esto el domingo. Verificar con `pap_status`
-- [ ] Relay desplegado en Vercel y respondiendo (`curl https://pap.devcristobalvc.com/api/health`)
-- [ ] MCP `pap` cargado desde `.mcp.json` en la raíz del repo (`claude mcp list` → `pap … Connected`), `~/.pap/agent.json` presente
-- [ ] Contacto `oracle` agregado (`pap_contact_add`) para poder decir "paga 5 demoUSDT a oracle"
-- [ ] `pap_call_gate` probado una vez contra producción (remate B)
-- [ ] `/wallet` en el iPhone muestra el agente en **Your agents** con la barra de la visa y al menos un sello en **Passport stamps** (los sellos se leen de HSK, tardan unos segundos en aparecer tras la tx)
-- [ ] Explorer abierto en `AgentPassport` `0xCE112FD67B0E19a2eeD894dDD3a5B445989A6e7B` (pestaña lista, ya cargada)
-- [ ] Simulador de teléfono listo en otra terminal (`node web/scripts/phone-sim.mjs`) — plan B si el iPhone falla en vivo
-- [ ] Video plan B descargado **localmente** (no depender de YouTube/wifi), abierto en un reproductor en pausa
-- [ ] Hotspot del celular listo como respaldo de internet del laptop
-- [ ] Una segunda persona del equipo con el repo abierto por si hay que mostrar código en Q&A
+If the iPhone cannot be mirrored: point the laptop camera at the phone and keep the camera window in a quarter of the screen.
 
 ---
 
-## Paso a paso (con quién hace qué)
+## Pre-flight checklist (one hour before going on stage)
 
-**Narra: Cristóbal · Teclado: Juan · Teléfono: Cristóbal (o William)**
+- [ ] Laptop charged, "do not disturb" on, brightness at maximum, large terminal font, light theme
+- [ ] iPhone charged, brightness at maximum, airplane mode **off**, mobile data on (do not depend on the venue Wi-Fi)
+- [ ] PWA installed on the iPhone (Safari → Share → Add to Home Screen), passkey created, session open
+- [ ] The phone address has **HSK for gas** (`/api/fund` sends 0.002 HSK when the wallet is created; if it ran out, use the faucet at https://hskchain.net/faucet) and **demoUSDT** (onboarding calls `faucet()` = 1000)
+- [ ] `pap_connect` done the day before: 4-transaction onboarding from the phone (`register` → `faucet` → `approve` → `grant` with a limit of 100). None of this on demo day. Check with `pap_status`; the visa must not be expired
+- [ ] Relay deployed on Vercel and answering (`curl https://pap.devcristobalvc.com/api/health`)
+- [ ] MCP `pap` loaded (Claude Code plugin `pap@pap`, or `.mcp.json` at the repo root: `claude mcp list` → `pap … Connected`), `~/.pap/agent.json` present
+- [ ] Contact `oracle` added (`pap_contact_add`) so you can say "pay 5 demoUSDT to oracle"
+- [ ] `pap_call_gate` tried once against production (closing beat B)
+- [ ] `/wallet` on the iPhone shows the agent under **Agents** with the visa bar and at least one stamp under **Stamps** (stamps are read from HSK Chain and take a few seconds to appear after the transaction)
+- [ ] Explorer open on `AgentPassport` `0xCE112FD67B0E19a2eeD894dDD3a5B445989A6e7B` (tab ready and loaded)
+- [ ] Phone simulator ready in another terminal (`node web/scripts/phone-sim.mjs`): plan B if the iPhone fails live
+- [ ] Plan B video downloaded **locally** (do not depend on YouTube or Wi-Fi), open in a player and paused
+- [ ] Phone hotspot ready as the laptop's backup internet
+- [ ] A second team member with the repo open in case code has to be shown during Q&A
 
-### 1. Contexto (10 s)
-Terminal ya abierta con Claude Code en el repo. Decir: *"Esto es Claude Code, un agente real, sin ninguna llave privada configurada."*
+---
 
-Opcional: mostrar `cat .env` → no hay `PRIVATE_KEY`. Es un detalle que los jueces técnicos valoran.
+## Step by step (who does what)
 
-### 2. Petición al agente (10 s)
-Juan escribe en Claude Code:
+**Narrator: Cristóbal · Keyboard: Juan · Phone: Cristóbal (or William)**
+
+### 1. Context (10 s)
+Terminal already open with Claude Code in the repo. Say: *"This is Claude Code, a real agent, with no private key configured."*
+
+Optional: show `cat .env` → there is no `PRIVATE_KEY`. Technical judges notice this detail.
+
+### 2. Ask the agent (10 s)
+Juan types in Claude Code:
 
 ```
-Paga 5 demoUSDT a oracle por la consulta de precio.
+Pay 5 demoUSDT to oracle for the price query.
 ```
-(`oracle` es un contacto de `pap_contact_add`; también vale la dirección 0x)
+(`oracle` is a contact added with `pap_contact_add`; a 0x address works too.)
 
-Claude decide llamar `pap_transfer`. Narrar: *"El agente no puede pagar. Lo único que puede hacer es pedir permiso."*
+Claude decides to call `pap_transfer`. Narrate: *"The agent cannot pay. All it can do is ask for permission."*
 
-### 3. QR en terminal (5 s)
-Aparece el QR ASCII en la terminal y el MCP abre `/show/request/:id` en el browser (QR grande, usar esa para el proyector). Narrar: *"Esto va a mi teléfono."*
+### 3. QR in the terminal (5 s)
+The ASCII QR appears in the terminal and the MCP opens `/show/request/:id` in the browser (big QR; use this one on the projector). Narrate: *"This goes to my phone."*
 
-### 4. Aprobación en iPhone (20 s)
-Escanear el QR con la cámara → abre la PWA en `/approve/:id`:
+### 4. Approval on the iPhone (20 s)
+Scan the QR with the camera → it opens the PWA at `/approve/:id`:
 
-> **Claude Code** quiere enviar **5 demoUSDT** a `0x…abcd`
-> Visa: `transfer:demoUSDT` · límite 100 · usado 0
-> [ Aprobar ] [ Rechazar ]
+> **Claude Code** wants to send **5 demoUSDT** to `0x…abcd`
+> Visa: `transfer:demoUSDT` · limit 100 · used 0
+> [ Approve ] [ Reject ]
 
-Narrar: *"Veo exactamente qué quiere hacer, en lenguaje humano, y el límite que yo le puse."*
-Tocar **Aprobar** → FaceID → el teléfono firma **una** tx `AgentPassport.pay()` en HashKey → "Enviado ✓ + hash".
+Narrate: *"I see exactly what it wants to do, in plain language, and the limit I gave it."*
+Tap **Approve** → Face ID → the phone signs **one** `AgentPassport.pay()` transaction on HashKey Chain → "Sent" + hash.
 
-### 5. El agente continúa (15 s)
-Volver al laptop: Claude recibió `{txHash, explorerUrl}` y sigue: *"Pago enviado, aquí está el link."*
-Clic en el link → pestaña del explorer con la tx confirmada (HashKey testnet confirma en ~2 s).
+### 5. The agent carries on (15 s)
+Back to the laptop: Claude received `{txHash, explorerUrl}` and continues: *"Payment sent, here is the link."*
+Click the link → explorer tab with the confirmed transaction (HashKey testnet confirms in about 2 s).
 
-Narrar: *"Humano en el loop, 15 segundos, desde el celular. El agente nunca tocó una llave."*
+Narrate: *"Human in the loop, 15 seconds, from the phone. The agent never touched a key."*
 
-**Remate visual (5 s, recomendado):** en el iPhone, deslizar hacia abajo en `/wallet` → sección **Passport stamps**: aparece el sello nuevo (monto, destinatario, tx, ejecutado por *you*). Arriba, en **Your agents**, la barra de gasto de la visa se movió (5 / 100). Narrar: *"Y el pasaporte tiene un sello nuevo — leído directo de la cadena."*
+**Visual beat (5 s, recommended):** on the iPhone, open `/wallet` → **Stamps** tab: the new stamp appears (amount, recipient, transaction, executed by *you*). Under **Agents**, the visa spending bar moved (5 / 100). Narrate: *"And the passport has a new stamp, read straight from the chain."*
 
-### 6. Lo que quedó on-chain (15 s)
-Cambiar a la pestaña del contrato `AgentPassport` en el explorer → eventos `PermissionGranted` y `Paid` (y en `IdentityRegistry` el `Registered` con owner = teléfono).
+### 6. What is on-chain (15 s)
+Switch to the `AgentPassport` contract tab in the explorer → `PermissionGranted` and `Paid` events (and, on `IdentityRegistry`, `Registered` with owner = the phone).
 
-**Remate opcional A (10 s):** pedirle a Claude *"ahora paga 500 demoUSDT a oracle"* → aprobar en el teléfono → la tx **revierte** con `LimitExceeded()`. Narrar: *"El límite no es una regla del servidor, es del contrato."* (Ya probado: funciona.)
+**Optional closing beat A (10 s):** ask Claude *"now pay 500 demoUSDT to oracle"* → approve on the phone → the transaction **reverts** with `LimitExceeded()`. Narrate: *"The limit is not a server rule, it is the contract's."* (Already tested: it works.)
 
-**Remate opcional B (10 s, iteración 2):** *"llama al oráculo protegido"* → `pap_call_gate` → en la terminal se ve `402` → challenge firmado → `200 ACCESS GRANTED`, **sin tocar el teléfono**. Narrar: *"Y cuando la visa ya existe, el agente pasa fronteras solo: 402, firma, 200. Estilo x402, sin facilitador."*
-Narrar: *"Cualquier servicio puede verificar que este agente está autorizado por un humano real, con alcance y límite, sin saber quién es el humano. Compliant but private."*
+**Optional closing beat B (10 s, iteration 2):** *"call the protected oracle"* → `pap_call_gate` → the terminal shows `402` → signed challenge → `200 ACCESS GRANTED`, **without touching the phone**. Narrate: *"And once the visa exists, the agent crosses borders on its own: 402, signature, 200. x402-style, no facilitator."*
+Narrate: *"Any service can verify that this agent is authorized by a real human, with a scope and a limit, without knowing who the human is. Compliant but private."*
 
-→ Volver al guion del pitch (roadmap y cierre).
-
----
-
-## Plan B1 — simulador de teléfono (si el iPhone falla)
-
-`node web/scripts/phone-sim.mjs` en una terminal aparte aprueba las solicitudes como si fuera el teléfono (firma con una wallet de prueba). El flujo Claude → MCP → relay → chain se ve igual; solo se pierde la parte de FaceID. Decir: *"el teléfono no está cooperando con el wifi, les muestro el mismo flujo con el simulador — el contrato es el mismo"*.
-
-## Plan B2 — video (si falla todo)
-
-Grabar el sábado en la noche (el E2E ya funciona).
-
-- **Formato:** grabación de pantalla del laptop (OBS o Win+G) con el iPhone espejado o en cámara. 60–75 s. Sin música, sin voz (se narra en vivo encima).
-- **Contenido:** exactamente los pasos 2 → 6 de arriba, sin cortes.
-- **Guardar en:** `docs/demo.mp4` (no subir al repo si pesa > 50 MB; dejar en el escritorio del laptop y en el teléfono) + subir a YouTube como *unlisted* para la submission de Devfolio.
-
-**Disparadores para pasar al plan B (no dudar, decidir en 5 segundos):**
-- El QR no abre la PWA o la PWA no carga en 10 s
-- FaceID falla dos veces
-- La tx no aparece en el explorer en 20 s
-- El MCP no responde / Claude no llama la tool
-
-Decir: *"Les muestro la grabación de esta mañana mientras la red se pone de acuerdo"* y dar play. Seguir narrando igual.
+→ Back to the pitch script (roadmap and close).
 
 ---
 
-## Fallos conocidos y qué hacer
+## Plan B1 — phone simulator (if the iPhone fails)
 
-| Síntoma | Causa probable | Fix rápido |
+`node web/scripts/phone-sim.mjs approve <requestId>` in a separate terminal approves requests as if it were the phone (it signs with a test wallet). The Claude → MCP → relay → chain flow looks the same; only the Face ID part is lost. Say: *"The phone is not getting along with the Wi-Fi, so here is the same flow with the simulator. The contract is the same."*
+
+## Plan B2 — video (if everything fails)
+
+Record the evening before (the E2E flow already works).
+
+- **Format:** laptop screen recording (OBS or Win+G) with the iPhone mirrored or on camera. 60–75 s. No music, no voice (narrate live over it).
+- **Content:** exactly steps 2 → 6 above, no cuts.
+- **Store:** `docs/demo.mp4` (do not commit it if it is over 50 MB; keep it on the laptop desktop and on the phone) + upload to YouTube as *unlisted* for the Devfolio submission.
+
+**Triggers to switch to plan B (do not hesitate, decide within 5 seconds):**
+- The QR does not open the PWA, or the PWA does not load within 10 s
+- Face ID fails twice
+- The transaction does not show up in the explorer within 20 s
+- The MCP does not answer / Claude does not call the tool
+
+Say: *"Here is this morning's recording while the network makes up its mind"* and press play. Keep narrating the same way.
+
+---
+
+## Known failures and what to do
+
+| Symptom | Likely cause | Quick fix |
 |---|---|---|
-| Claude no llama `pap_transfer` | MCP no conectado / `.mcp.json` no cargado | `claude mcp list`; reiniciar Claude Code desde la raíz del repo; prompt más explícito: "usa la tool pap_transfer" |
-| `pap_transfer` dice que no hay agente | `~/.pap/agent.json` ausente | Correr `pap_connect` (ya debería estar hecho el sábado) |
-| QR abre pero PWA dice "request not found" | Relay reiniciado (in-memory) o URL distinta | Repetir el paso 2; verificar `PAP_RELAY_URL` en el MCP |
-| Teléfono firma pero tx revierte `LimitExceeded` / expirado | Límite acumulado agotado por los ensayos o grant vencido | `revoke` + `grant` de nuevo desde el teléfono (o re-hacer `pap_connect`); verificar `getGrant` en el explorer. Ensayar con montos pequeños (1–5) para no agotar los 100 |
-| Teléfono sin gas | `/api/fund` ya dio sus 0.002 HSK y se gastaron | Faucet https://hskchain.net/faucet o mandar HSK desde la wallet deployer |
-| "insufficient funds" en el teléfono | Sin HSK para gas | Faucet ya no da más ese día → usar la dirección de respaldo (fondearla el sábado) |
-| Tx enviada pero Claude sigue esperando | Poll (hasta 5 min) / relay no recibió `resolve` | Mostrar el hash desde el teléfono en el explorer; explicar que el agente reintenta |
-| Wifi de ICESI caído | — | Hotspot del celular al laptop; el teléfono ya va por datos |
+| Claude does not call `pap_transfer` | MCP not connected / plugin or `.mcp.json` not loaded | `claude mcp list`; restart Claude Code from the repo root; more explicit prompt: "use the pap_transfer tool" |
+| `pap_transfer` says there is no agent | `~/.pap/agent.json` missing | Run `pap_connect` (should already be done the day before) |
+| QR opens but the PWA says "request not found" | Relay restarted (in-memory) or a different URL | Repeat step 2; check `PAP_RELAY_URL` in the MCP |
+| Phone signs but the transaction reverts with `LimitExceeded` / expired | Rehearsals used up the limit, or the grant expired | `revoke` + `grant` again from the phone (or redo `pap_connect`); check `getGrant` in the explorer. Rehearse with small amounts (1–5) so the 100 are not used up |
+| Phone has no gas | `/api/fund` already sent its 0.002 HSK and it was spent (it funds each address once) | Faucet at https://hskchain.net/faucet or send HSK from the deployer wallet |
+| "insufficient funds" on the phone | No HSK for gas | If the faucet will not give more that day → use the backup address (fund it the day before) |
+| Transaction sent but Claude keeps waiting | Polling (up to 5 min) / the relay did not receive `resolve` | Show the hash from the phone in the explorer; explain that the agent keeps polling |
+| Venue Wi-Fi down | — | Phone hotspot for the laptop; the phone is already on mobile data |
 
 ---
 
-## Después de la demo
+## After the demo
 
-- Anotar preguntas del jurado que no estén en `PITCH.md`
-- Subir el video *unlisted* + link del explorer a la submission de Devfolio antes de las 13:30 si aún no está
-- Compartir el link del repo en el Telegram del evento
+- Write down judge questions that are not in `PITCH.md`
+- Upload the *unlisted* video + explorer link to the Devfolio submission if it is not there yet
+- Share the repo link in the event's Telegram

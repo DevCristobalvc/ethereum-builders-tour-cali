@@ -6,6 +6,8 @@ Human-in-the-loop authorization for AI agents, enforced on-chain. **Live on Hash
 
 Built at **Ethereum Builders Tour: Cali** (Sep 19–20, 2026 · Ethereum Applications Guild × HashKey Chain × ETH Cali).
 
+[![The PAP landing: a white paper with the abstract and Figure 1](docs/img/landing/desktop-hero.png)](https://pap.devcristobalvc.com)
+
 ## The problem
 
 An AI agent (Claude Code, a trading bot, an A2A worker) that needs to move money has two options today: a private key in `.env` — it can do **everything**, forever, one prompt injection away from draining the wallet — or **no key**, and you copy-paste transactions by hand. There is no way for a human to approve *this specific action* from a device they trust, with a verifiable on-chain record of *who* authorized *which* agent to do *what*.
@@ -49,7 +51,7 @@ Then, in Claude Code:
 2. *"pay 5 demoUSDT to 0x… for the oracle call"* → QR → Face ID → 1 tx → the agent gets the tx hash.
 3. *"call the gated oracle"* → `pap_call_gate` → 402 → signed challenge → 200.
 
-On the phone, `/wallet` shows **Your agents** (each linked agent with its on-chain visa: spent / limit bar and expiry) and **Passport stamps** (the real `Paid` events read from HSK — amount, recipient, tx, and whether *you* or the *agent* executed it).
+On the phone, `/wallet` has three tabs: **Agents** (each linked agent with its on-chain visa: spent / limit bar and expiry), **Vault** (sealed secrets, reads used, revoke / rotate) and **Stamps** (every payment and secret read recorded on HSK Chain: amount, recipient, tx, and whether *you* or the *agent* executed it).
 
 The MCP server is a standalone bundle (`mcp/dist/pap.mjs`, committed). The agent's identity lives in `~/.pap/agent.json` — **no private key anywhere on the agent side**. Other MCP clients: `command: node`, `args: ["<repo>/mcp/dist/pap.mjs"]`, `env: PAP_RELAY_URL=https://pap.devcristobalvc.com`.
 
@@ -71,6 +73,7 @@ Claude Code ──MCP──▶ PAP MCP server ──HTTPS──▶ Relay (Next.j
 ```
 
 - **Agent** never holds a spending key. **Relay** cannot sign. **Phone** is the only signer. **Chain** enforces every permission.
+- History (stamps, live stats) is read from the explorer's Etherscan-style API, because the public HSK RPC caps `eth_getLogs` at a few thousand blocks.
 - Full component/API reference: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Deployed on HashKey Chain testnet (chainId 133)
@@ -89,17 +92,35 @@ All verified on [Blockscout](https://testnet-explorer.hskchain.net). RPC `https:
 ## Repo
 
 ```
-contracts/   Foundry — ERC-8004 registries, AgentPassport, DemoUSDT, ZK verifier · 25 unit + 3 fork tests
+contracts/   Foundry — ERC-8004 registries, AgentPassport, DemoUSDT, ZK verifier · 37 unit + 3 fork tests
 web/         Next.js — landing, phone PWA (/wallet), relay API, gate (/api/gate/oracle)
 mcp/         MCP server (pap_connect, pap_transfer, pap_secret, pap_call_gate, …) + `pap` CLI (seal, secret, rpc)
 .claude/     Skills: pap-onboarding, pap-payments, pap-secrets, pap-seal, pap-gate, pap-rpc
 plugin/      Claude Code plugin (MCP + CLI + skills), published by .claude-plugin/marketplace.json
 .mcp.json    Registers the MCP server when you open the repo in Claude Code
 deployments/ Addresses (133.json) + ABIs
-docs/        ARCHITECTURE · RPC · AGENTS · SECURITY · GATE · PITCH · DEMO · VIDEO · SUBMISSION · STATE_OF_THE_ART · RESOURCES
+docs/        ARCHITECTURE · RPC · AGENTS · SECURITY · GATE · AUTONOMOUS_SECRETS · LANDING · PITCH · DEMO · VIDEO · SUBMISSION · STATE_OF_THE_ART · RESOURCES
+backlog.md   Every ticket (PAP-01…40) with acceptance criteria, tests and a post-development summary
 ```
 
 Develop: `cd contracts && forge test` · `cd web && npm i && npm run dev` · `cd mcp && npm i && npm run build` (only if you change `mcp/src`).
+
+## Tested
+
+CI runs on every push (Foundry, web build + lint, MCP bundle in sync). The last full pass (details in `backlog.md`, PAP-29):
+
+| Suite | Result |
+|---|---|
+| Contracts — `forge test` / fork against HSK testnet | 37 / 37 · 3 / 3 |
+| Crypto + EIP-712 — `mcp: npm test` | 10 / 10 |
+| JSON-RPC conformance — `mcp/scripts/rpc-test.ts` (local and production) | 19 / 19 |
+| Sealed secrets on the relay — `secrets-relay-test.ts` | 27 / 27 |
+| Secrets through the real CLI + MCP bundles — `secrets-e2e.mjs` | 11 / 11 |
+| Local EIP-1193 signer (`pap rpc`, EIP-5792 / 7715) — `rpc-signer-test.mjs` | 20 / 20 |
+| Web Push (RFC 8291) — `push-test.ts` | 10 / 10 |
+| Gate — `gate-test.mjs` against production | valid key 200 · other key 403 · tampered 403 |
+| On-chain E2E against production — `mcp/scripts/e2e.mjs` | pair → pay 10 → 500 reverts `LimitExceeded` → reject → gate 200 |
+| Lighthouse (production) | desktop 100 / 100 / 100 / 100 · mobile 82–86 / 100 / 100 / 100 |
 
 ## Tracks
 
@@ -113,7 +134,7 @@ Develop: `cd contracts && forge test` · `cd web && npm i && npm run dev` · `cd
 | **1 — Passport + visa + Face ID payment** | ERC-8004 registration from the phone, `grant`, `pay()` enforced on-chain, MCP tools | **live** |
 | **2 — x402-style gate** | `402` → signed challenge → on-chain visa check → `200`; `pap_call_gate` | **live** |
 | **3 — ZK passport** | Prove "I'm an authorized agent" with a Groth16 membership proof (`zkpjwt-core`) without revealing which one. Verifier + registry deployed. | contracts + tests done |
-| **4 — Sealed secrets + any agent** | API keys released with agent signature + Face ID (layered ECIES, EIP-712, reads counted on-chain); JSON-RPC `pap_*` + local EIP-1193 signer; push notifications; skills + Claude Code plugin | **built** (see `backlog.md`) |
+| **4 — Sealed secrets + any agent** | API keys released with agent signature + Face ID (layered ECIES, EIP-712, reads counted on-chain); JSON-RPC `pap_*` + local EIP-1193 signer; push notifications; skills + Claude Code plugin | **live** (see `backlog.md`) |
 | Later | RIP-7212 / AA so the passkey signs on-chain directly · agent-to-agent payments · nullifier in-circuit · secrets without Face ID inside a visa (PAP-20) | — |
 
 ## Team

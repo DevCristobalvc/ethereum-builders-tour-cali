@@ -15,7 +15,7 @@ ABIs: `../deployments/abi/*.json` · addresses: `../deployments/133.json`.
 ## Test
 
 ```bash
-forge test                                                        # 25 unit tests (fork tests auto-skip)
+forge test                                                        # 37 unit tests (fork tests auto-skip)
 forge test --match-contract Fork --fork-url https://testnet.hsk.xyz   # 3 tests against the live deployment
 ```
 
@@ -100,9 +100,17 @@ Countable actions: `limit = N` uses (or `type(uint256).max` = unlimited, still e
 `ActionRecorded(uint256 indexed agentId, bytes32 indexed scope, uint256 amount, bytes32 indexed ref, address recordedBy)`
 — `agentId`, `scope` and `ref` are indexed, so explorers / the PWA can filter by topic.
 
+The public RPC rejects `eth_getLogs` over a few thousand blocks (`block range too large`), so for the full history use the explorer's Etherscan-style API (this is what the PWA does, `web/src/lib/logs.ts`):
+
 ```bash
-# all stamps of agent 6 (deploy block 33334362)
-cast logs --rpc-url https://testnet.hsk.xyz --from-block 33334362   --address 0xCE112FD67B0E19a2eeD894dDD3a5B445989A6e7B   'ActionRecorded(uint256 indexed agentId, bytes32 indexed scope, uint256 amount, bytes32 indexed ref, address recordedBy)' 6
+curl 'https://testnet-explorer.hskchain.net/api?module=logs&action=getLogs&fromBlock=33334362&toBlock=latest&address=0xCE112FD67B0E19a2eeD894dDD3a5B445989A6e7B'
+```
+
+With the RPC, query a recent window:
+
+```bash
+# stamps of agent 6 in the last ~4000 blocks
+cast logs --rpc-url https://testnet.hsk.xyz --from-block $(( $(cast block-number --rpc-url https://testnet.hsk.xyz) - 4000 ))   --address 0xCE112FD67B0E19a2eeD894dDD3a5B445989A6e7B   'ActionRecorded(uint256 indexed agentId, bytes32 indexed scope, uint256 amount, bytes32 indexed ref, address recordedBy)' 6
 
 # or decoded:
 forge script script/ReadHistory.s.sol --sig "run(uint256)" 6 --rpc-url hashkey_testnet
