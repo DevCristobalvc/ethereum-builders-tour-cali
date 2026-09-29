@@ -118,11 +118,11 @@ Solidity, Foundry, ERC-8004, HashKey Chain, Next.js, TypeScript, viem, WebAuthn,
 
 ## Team
 
-**[OK CRISTÓBAL]** — Devfolio adds teammates by Devfolio username. Confirm whether Juan and William have accounts and want to be added, or if it goes as a solo submission with credits in the README.
+Solo submission by Cristóbal Valencia. "Juan" and "William" in the planning docs are AI coding agents (Claude Code), not people, so there are no teammates to add on Devfolio..
 
 - Cristóbal Valencia — @DevCristobalvc — product, pitch, docs, submission
-- Juan — web/ + mcp/
-- William — contracts/ + HSK deploy
+- "Juan" (AI agent) — web/ + mcp/
+- "William" (AI agent) — contracts/ + HSK deploy
 
 ## Pre-submit checklist
 
