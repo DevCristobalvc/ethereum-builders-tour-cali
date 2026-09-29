@@ -3,20 +3,19 @@
 import { useEffect, useState } from "react";
 import { useInView } from "./motion";
 
-const DEPLOY_BLOCK = 33334362n;
 type Stats = { agents: bigint; stamps: number; volume: string };
 
 async function fetchStats(): Promise<Stats | null> {
-  const [{ formatUnits, parseAbiItem }, { ABI, ADDRESSES }, { pub }] = await Promise.all([import("viem"), import("@/lib/chain"), import("@/lib/onchain")]);
+  const [{ formatUnits, parseAbiItem }, { ABI, ADDRESSES }, { pub }, { eventLogs }] = await Promise.all([
+    import("viem"),
+    import("@/lib/chain"),
+    import("@/lib/onchain"),
+    import("@/lib/logs"),
+  ]);
   if (!ADDRESSES.IdentityRegistry || !ADDRESSES.AgentPassport) return null;
   const [agents, logs] = await Promise.all([
     pub.readContract({ address: ADDRESSES.IdentityRegistry, abi: ABI.IdentityRegistry, functionName: "totalAgents" }) as Promise<bigint>,
-    pub.getLogs({
-      address: ADDRESSES.AgentPassport,
-      event: parseAbiItem("event Paid(uint256 indexed agentId, address indexed token, address indexed to, uint256 amount, bytes32 ref, address by)"),
-      fromBlock: DEPLOY_BLOCK,
-      toBlock: "latest",
-    }),
+    eventLogs<{ amount: bigint }>(ADDRESSES.AgentPassport, parseAbiItem("event Paid(uint256 indexed agentId, address indexed token, address indexed to, uint256 amount, bytes32 ref, address by)")),
   ]);
   return { agents, stamps: logs.length, volume: formatUnits(logs.reduce((a, l) => a + (l.args.amount ?? 0n), 0n), 6) };
 }

@@ -120,24 +120,15 @@ export async function readGrant(agentId: bigint, token: Address): Promise<Grant>
   return { limit, spent, expiry, active };
 }
 
-/** AgentPassport deploy block on HSK testnet — start of the stamp history. */
-const PASSPORT_DEPLOY_BLOCK = 33334362n;
 export type Stamp = { txHash: Hex; token: Address; to: Address; amount: bigint; by: Address; block: bigint };
 
 /** Every payment this agent's passport has been stamped with (Paid events). */
 export async function readStamps(agentId: bigint): Promise<Stamp[]> {
   const passport = need("AgentPassport");
-  const logs = await pub.getLogs({
-    address: passport,
-    event: parseAbiItem(
-      "event Paid(uint256 indexed agentId, address indexed token, address indexed to, uint256 amount, bytes32 ref, address by)"
-    ),
-    args: { agentId },
-    fromBlock: PASSPORT_DEPLOY_BLOCK,
-    toBlock: "latest",
-  });
+  const { eventLogs } = await import("./logs");
+  const logs = await eventLogs<{ token: Address; to: Address; amount: bigint; by: Address }>(passport, parseAbiItem("event Paid(uint256 indexed agentId, address indexed token, address indexed to, uint256 amount, bytes32 ref, address by)"), agentId);
   return logs
-    .map((l) => ({ txHash: l.transactionHash, token: l.args.token!, to: l.args.to!, amount: l.args.amount!, by: l.args.by!, block: l.blockNumber }))
+    .map((l) => ({ txHash: l.txHash, token: l.args.token, to: l.args.to, amount: l.args.amount, by: l.args.by, block: l.block }))
     .reverse();
 }
 
@@ -199,14 +190,11 @@ export type ReadStamp = { txHash: Hex; scope: Hex; by: Address; block: bigint };
 /** Every approved secret read (ActionRecorded on the given secret scopes). */
 export async function readSecretStamps(agentId: bigint, scopes: Hex[]): Promise<ReadStamp[]> {
   if (!scopes.length) return [];
-  const logs = await pub.getLogs({
-    address: need("AgentPassport"),
-    event: parseAbiItem(
-      "event ActionRecorded(uint256 indexed agentId, bytes32 indexed scope, uint256 amount, bytes32 indexed ref, address recordedBy)"
-    ),
-    args: { agentId, scope: scopes },
-    fromBlock: PASSPORT_DEPLOY_BLOCK,
-    toBlock: "latest",
-  });
-  return logs.map((l) => ({ txHash: l.transactionHash, scope: l.args.scope!, by: l.args.recordedBy!, block: l.blockNumber })).reverse();
+  const { eventLogs } = await import("./logs");
+  const want = new Set(scopes.map((s) => s.toLowerCase()));
+  const logs = await eventLogs<{ scope: Hex; recordedBy: Address }>(need("AgentPassport"), parseAbiItem("event ActionRecorded(uint256 indexed agentId, bytes32 indexed scope, uint256 amount, bytes32 indexed ref, address recordedBy)"), agentId);
+  return logs
+    .filter((l) => want.has(l.args.scope.toLowerCase()))
+    .map((l) => ({ txHash: l.txHash, scope: l.args.scope, by: l.args.recordedBy, block: l.block }))
+    .reverse();
 }
