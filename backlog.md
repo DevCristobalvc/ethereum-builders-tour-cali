@@ -1206,5 +1206,5 @@ Publish the project on Devfolio (EAG Global Buildathon) with real screenshots, l
 **Post-development summary**
 - Project: https://devfolio.co/projects/passport-agent-protocol-3e64, tracks *Track: Colombia Hackathon*, *AI × Ethereum & Agent Economy* and *HSK Chain*.
 - Profile bio rewritten in English. The individual application must be submitted in the browser (the API answers "This event requires the browser submission workflow"); the final step, accepting the Terms & Conditions and Code of Conduct, is left to the owner.
-- `docs/demo.mp4` (2:10, 1280×720): recorded with Playwright while `mcp/scripts/e2e.mjs` ran against production (agent #14 paired on-chain, payment of 10, 500 reverts with `LimitExceeded`, rejection, gate 200). The phone is `phone-sim.mjs`, not a real iPhone; a take with a real iPhone and Face ID is still recommended.
+- `docs/demo.mp4` (2:48, 1280×720, English narration with an en-US neural voice, subtitles in English with Spanish below): recorded with Playwright while `mcp/scripts/e2e.mjs` ran against production (agent #14 paired on-chain, payment of 10, 500 reverts with `LimitExceeded`, rejection, gate 200). The phone is `phone-sim.mjs`, not a real iPhone; a take with a real iPhone and Face ID is still recommended.
 - App icons redrawn in the white-paper palette (PR #4); `favicon.ico` frames must be RGBA or the Next.js build fails.
