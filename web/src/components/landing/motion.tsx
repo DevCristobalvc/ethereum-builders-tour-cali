@@ -30,10 +30,10 @@ export type TermLine = { c: string; t: string };
 
 const GATE_LINES: TermLine[] = [
   { c: "$", t: "GET /api/gate/oracle" },
-  { c: "<", t: "402 Payment Required · WWW-Authenticate: PAP-Visa" },
+  { c: "<", t: "402 Payment Required, WWW-Authenticate: PAP-Visa" },
   { c: "·", t: "sign(challenge) with agent identity key" },
   { c: "$", t: "GET /api/gate/oracle  -H X-PAP-VISA: …" },
-  { c: "·", t: "on-chain: getAgentWallet(#8) ✓  canAct(visa) ✓" },
+  { c: "·", t: "on-chain: getAgentWallet(#8) ok, canAct(visa) ok" },
   { c: "<", t: "200 OK  { price: HSK/USDT, value: 0.1133 }" },
 ];
 
@@ -66,21 +66,16 @@ export function Terminal({ lines = GATE_LINES }: { lines?: TermLine[] }) {
   }, []);
   const done = shown.i === -1 ? lines.length : shown.i;
   return (
-    <div className="rounded-2xl border border-border bg-[#1c1420] p-5 font-mono text-[13px] leading-6 text-[#e9e2f0] shadow-[0_30px_80px_-40px_rgba(122,31,92,0.6)]">
-      <div className="mb-3 flex gap-1.5">
-        <span className="h-2.5 w-2.5 rounded-full bg-bad/80" />
-        <span className="h-2.5 w-2.5 rounded-full bg-gold/80" />
-        <span className="h-2.5 w-2.5 rounded-full bg-ok/80" />
-      </div>
+    <div className="rounded-sm border border-border bg-code-bg p-5 font-mono text-[13px] leading-6 text-code-fg">
       {lines.slice(0, done).map((l, i) => (
         <div key={i}>
-          <span className={l.c === "<" ? "text-[#e58cbd]" : "text-muted"}>{l.c} </span>
+          <span className={l.c === "<" ? "text-code-hi" : "text-code-dim"}>{l.c} </span>
           {l.t}
         </div>
       ))}
       {shown.i >= 0 && shown.i < lines.length && (
         <div className="cursor">
-          <span className={lines[shown.i].c === "<" ? "text-[#e58cbd]" : "text-muted"}>{lines[shown.i].c} </span>
+          <span className={lines[shown.i].c === "<" ? "text-code-hi" : "text-code-dim"}>{lines[shown.i].c} </span>
           {lines[shown.i].t.slice(0, shown.n)}
         </div>
       )}
@@ -154,7 +149,7 @@ export function CopyButton({ text, className = "" }: { text: string; className?:
           setTimeout(() => setDone(false), 1500);
         } catch {}
       }}
-      className={`min-h-11 min-w-11 rounded-full border border-white/15 px-3 font-cond text-[12px] font-semibold uppercase tracking-[0.18em] text-[#e9e2f0] hover:bg-white/10 ${className}`}
+      className={`min-h-11 min-w-11 rounded-[4px] border border-white/15 px-3 text-[13px] font-medium text-code-fg hover:bg-white/10 ${className}`}
       aria-label="Copy command"
     >
       {done ? "Copied" : "Copy"}

@@ -47,16 +47,16 @@ export function LiveStats() {
     { k: "Gas per visa", v: "< 0.001 HSK" },
   ];
   return (
-    <div ref={ref} className="overflow-hidden rounded-2xl border border-border bg-border">
+    <div ref={ref} className="overflow-hidden rounded-sm border border-border bg-border">
       <dl className="grid grid-cols-2 gap-px md:grid-cols-4">
         {items.map((i) => (
           <div key={i.k} className="bg-surface p-5">
-            <dt className="font-cond text-[12px] uppercase tracking-[0.18em] text-muted">{i.k}</dt>
-            <dd className="mt-1 font-serif text-4xl font-medium tabular-nums text-foreground">{i.v}</dd>
+            <dt className="text-[13px] text-muted">{i.k}</dt>
+            <dd className="mt-1 font-serif text-4xl font-semibold tabular-nums text-foreground">{i.v}</dd>
           </div>
         ))}
       </dl>
-      <p className="mt-px bg-surface px-5 py-2 text-[11px] text-muted">Live from HSK Chain testnet · updates every 20s</p>
+      <p className="mt-px bg-surface px-5 py-2 text-[11px] text-muted">Live from HSK Chain testnet, refreshed every 20 s</p>
     </div>
   );
 }

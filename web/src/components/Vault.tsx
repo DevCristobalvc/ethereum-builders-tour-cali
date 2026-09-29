@@ -77,7 +77,7 @@ export function Vault({ w }: { w: StoredWallet }) {
 
   return (
     <>
-      <Link href="/vault/new" className="rounded-full bg-foreground px-5 py-3.5 text-center text-[15px] font-semibold text-white">
+      <Link href="/vault/new" className="rounded-md bg-foreground px-5 py-3.5 text-center text-[15px] font-medium text-white">
         + Seal a secret
       </Link>
       {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
@@ -98,7 +98,7 @@ export function Vault({ w }: { w: StoredWallet }) {
             <Card key={`${s.agentAddress}.${s.name}`} className="flex flex-col gap-2">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h2 className="font-semibold">🔑 {s.name}</h2>
+                  <h2 className="font-semibold">{s.name}</h2>
                   <p className="text-xs text-muted">for {s.agentName}</p>
                 </div>
                 <span

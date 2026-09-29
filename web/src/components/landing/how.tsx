@@ -7,26 +7,26 @@
 import { useState } from "react";
 import { useScrollProgress } from "./motion";
 
-type Node = { who: string; does: string; icon: string };
+type Node = { who: string; does: string };
 
 const FLOWS: Record<"payments" | "secrets", { label: string; nodes: Node[] }> = {
   payments: {
     label: "Payments",
     nodes: [
-      { icon: "🤖", who: "Agent", does: "signs the request" },
-      { icon: "📨", who: "Relay", does: "carries it — holds no keys" },
-      { icon: "📱", who: "Your phone", does: "Face ID · signs pay()" },
-      { icon: "⛓️", who: "HSK Chain", does: "enforces limit + expiry" },
+      { who: "Agent", does: "signs the request" },
+      { who: "Relay", does: "carries it; holds no keys" },
+      { who: "Your phone", does: "Face ID, signs pay()" },
+      { who: "HSK Chain", does: "enforces limit and expiry" },
     ],
   },
   secrets: {
     label: "Secrets",
     nodes: [
-      { icon: "💻", who: "Your laptop", does: "seals: your layer + the agent's" },
-      { icon: "📨", who: "Relay", does: "stores ciphertext only" },
-      { icon: "📱", who: "Your phone", does: "Face ID · removes your layer" },
-      { icon: "⛓️", who: "HSK Chain", does: "counts the read (record)" },
-      { icon: "🤖", who: "Agent", does: "opens the rest with its key" },
+      { who: "Your laptop", does: "seals two layers: yours and the agent's" },
+      { who: "Relay", does: "stores ciphertext only" },
+      { who: "Your phone", does: "Face ID, removes your layer" },
+      { who: "HSK Chain", does: "counts the read (record)" },
+      { who: "Agent", does: "opens the rest with its key" },
     ],
   },
 };
@@ -40,14 +40,14 @@ export function HowItWorks() {
 
   return (
     <div ref={ref}>
-      <div role="tablist" aria-label="Flow" className="mb-10 inline-flex rounded-full border border-border bg-surface p-1">
+      <div role="tablist" aria-label="Flow" className="mb-10 inline-flex rounded-md border border-border bg-surface p-1">
         {(Object.keys(FLOWS) as (keyof typeof FLOWS)[]).map((k) => (
           <button
             key={k}
             role="tab"
             aria-selected={flow === k}
             onClick={() => setFlow(k)}
-            className={`min-h-11 rounded-full px-5 font-cond text-[13px] font-semibold uppercase tracking-[0.18em] transition ${
+            className={`min-h-11 rounded-[4px] px-5 text-[14px] font-medium transition ${
               flow === k ? "bg-foreground text-white" : "text-muted hover:text-foreground"
             }`}
           >
@@ -74,14 +74,14 @@ export function HowItWorks() {
           return (
             <li key={`${flow}-${n.who}-${i}`} className="relative flex items-start gap-5 md:flex-1 md:flex-col md:items-center md:text-center">
               <span
-                className={`relative z-10 flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 text-2xl transition-all duration-500 ${
-                  lit ? "scale-100 border-accent bg-surface shadow-[0_0_0_6px_rgba(122,31,92,0.08)]" : "scale-90 border-border bg-background grayscale"
+                className={`relative z-10 flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 font-mono text-[15px] transition-all duration-500 ${
+                  lit ? "border-accent bg-surface text-accent" : "border-border bg-background text-muted"
                 }`}
               >
-                {n.icon}
+                {String(i + 1).padStart(2, "0")}
               </span>
               <div>
-                <p className={`font-cond text-[15px] font-semibold uppercase tracking-[0.14em] transition-colors duration-500 ${lit ? "text-foreground" : "text-muted"}`}>{n.who}</p>
+                <p className={`font-serif text-[20px] font-semibold transition-colors duration-500 ${lit ? "text-foreground" : "text-muted"}`}>{n.who}</p>
                 <p className="mt-1 text-[15px] leading-snug text-muted md:max-w-[12rem]">{n.does}</p>
               </div>
             </li>

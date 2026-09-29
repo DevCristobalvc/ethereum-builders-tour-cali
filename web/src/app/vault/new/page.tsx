@@ -66,7 +66,7 @@ function NewSecret({ w }: { w: StoredWallet }) {
         body: JSON.stringify({ agentAddress: target.agentAddress, name, blob, maxReads, expiry: expiry.toString(), nonce: msg.nonce, grantTx, sig }),
       });
       setValue("");
-      setDone(`🔒 Sealed for ${target.agentName}. Not even the server can read it.`);
+      setDone(`Sealed for ${target.agentName}. Not even the server can read it.`);
     } catch (e) {
       setErr((e as Error).message);
     } finally {

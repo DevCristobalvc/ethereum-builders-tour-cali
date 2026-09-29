@@ -9,7 +9,7 @@ import { api } from "@/lib/relay";
 import type { AgentRecord, SecretMeta } from "@/lib/types";
 import { Card, TxLink, short } from "./ui";
 
-type Entry = { key: string; block: bigint; icon: string; text: string; agent: string; byYou: boolean; txHash: Hex };
+type Entry = { key: string; block: bigint; tag: string; text: string; agent: string; byYou: boolean; txHash: Hex };
 
 export function Stamps({ owner }: { owner: string }) {
   const [entries, setEntries] = useState<Entry[]>();
@@ -38,7 +38,7 @@ export function Stamps({ owner }: { owner: string }) {
                 ...paid.map<Entry>((p) => ({
                   key: `p${p.txHash}`,
                   block: p.block,
-                  icon: "💸",
+                  tag: "Pay",
                   text: `${formatUnits(p.amount, DEMO_TOKEN_DECIMALS)} ${TOKEN_SYMBOL} → ${short(p.to)}`,
                   agent: a.agentName,
                   byYou: p.by.toLowerCase() === me,
@@ -47,7 +47,7 @@ export function Stamps({ owner }: { owner: string }) {
                 ...reads.map<Entry>((r) => ({
                   key: `r${r.txHash}`,
                   block: r.block,
-                  icon: "🔑",
+                  tag: "Read",
                   text: `read “${byScope.get(r.scope) ?? "secret"}”`,
                   agent: a.agentName,
                   byYou: r.by.toLowerCase() === me,
@@ -79,7 +79,7 @@ export function Stamps({ owner }: { owner: string }) {
           {entries.slice(0, 30).map((e) => (
             <li key={e.key} className="flex items-center justify-between gap-2 py-2 text-sm">
               <span>
-                {e.icon} {e.text}
+                <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-accent">{e.tag}</span> {e.text}
                 <span className="ml-1 text-xs text-muted">
                   · {e.agent} · {e.byYou ? "you" : "agent"}
                 </span>

@@ -17,7 +17,7 @@ const TABS: Tab[] = [
       { note: "Add the marketplace", code: "/plugin marketplace add DevCristobalvc/ethereum-builders-tour-cali" },
       { note: "Install the plugin (MCP server + skills)", code: "/plugin install pap@pap" },
     ],
-    after: "Then ask: “connect to PAP” — a QR appears, scan it with your phone.",
+    after: "Then ask: “connect to PAP”. A QR code appears; scan it with your phone.",
   },
   {
     id: "mcp",
@@ -35,8 +35,8 @@ const TABS: Tab[] = [
     id: "any",
     label: "Any agent",
     blocks: [
-      { note: "Local Ethereum signer — cast, viem, ethers, web3.py", code: "node mcp/dist/pap-cli.mjs rpc --port 8545" },
-      { note: "…or plain JSON-RPC from any language", code: "curl https://pap.devcristobalvc.com/api/rpc -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"rpc.discover\"}'" },
+      { note: "Local Ethereum signer for cast, viem, ethers, web3.py", code: "node mcp/dist/pap-cli.mjs rpc --port 8545" },
+      { note: "Or plain JSON-RPC from any language", code: "curl https://pap.devcristobalvc.com/api/rpc -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"rpc.discover\"}'" },
     ],
     after: "No private key in .env: transactions and secrets go through your phone.",
   },
@@ -52,10 +52,10 @@ const TABS: Tab[] = [
 
 const PAIR_LINES: TermLine[] = [
   { c: "›", t: "connect to PAP" },
-  { c: "·", t: "pap_connect → QR on screen" },
+  { c: "·", t: "pap_connect: QR on screen" },
   { c: "<", t: "Paired · ERC-8004 agent #8 · visa 100 demoUSDT / 7d" },
   { c: "›", t: "run the tests that need the OpenAI key" },
-  { c: "·", t: "pap_secret(openai) → waiting for your phone…" },
+  { c: "·", t: "pap_secret(openai): waiting for your phone…" },
   { c: "<", t: "APPROVED · written to ~/.pap/secrets/openai (0600)" },
 ];
 
@@ -72,7 +72,7 @@ export function Install() {
               role="tab"
               aria-selected={tab === x.id}
               onClick={() => setTab(x.id)}
-              className={`min-h-11 shrink-0 rounded-full border px-4 font-cond text-[13px] font-semibold uppercase tracking-[0.16em] transition ${
+              className={`min-h-11 shrink-0 rounded-[4px] border px-4 text-[14px] font-medium transition ${
                 tab === x.id ? "border-foreground bg-foreground text-white" : "border-border bg-surface text-muted hover:text-foreground"
               }`}
             >
@@ -84,8 +84,8 @@ export function Install() {
           {t.blocks.map((b) => (
             <div key={b.code}>
               <p className="mb-2 text-sm text-muted">{b.note}</p>
-              <div className="flex items-start gap-3 rounded-2xl bg-[#1c1420] p-4">
-                <code className="min-w-0 flex-1 break-all font-mono text-[13px] leading-6 text-[#e9e2f0]">{b.code}</code>
+              <div className="flex items-start gap-3 rounded-sm bg-code-bg p-4">
+                <code className="min-w-0 flex-1 break-all font-mono text-[13px] leading-6 text-code-fg">{b.code}</code>
                 <CopyButton text={b.code} />
               </div>
             </div>
@@ -94,9 +94,9 @@ export function Install() {
         </div>
         <ol className="mt-8 grid grid-cols-3 gap-3 text-center">
           {["Install", "Scan the QR", "Done"].map((s, i) => (
-            <li key={s} className="rounded-2xl border border-border bg-surface px-2 py-4">
-              <p className="font-cond text-[11px] uppercase tracking-[0.2em] text-accent">0{i + 1}</p>
-              <p className="mt-1 font-serif text-xl">{s}</p>
+            <li key={s} className="rounded-sm border border-border bg-surface px-2 py-4">
+              <p className="font-mono text-[12px] text-accent">0{i + 1}</p>
+              <p className="mt-1 font-serif text-lg font-semibold">{s}</p>
             </li>
           ))}
         </ol>
@@ -107,9 +107,9 @@ export function Install() {
 }
 
 const CRED_STEPS = [
-  { title: "Paste it on your laptop", body: "pap seal openai — hidden prompt, never in a chat.", icon: "⌨️" },
-  { title: "Pick the agent and the limits", body: "Max reads and days. Approve once on your phone.", icon: "📱" },
-  { title: "Sealed", body: "It opens only with the agent’s signature + your Face ID.", icon: "🔒" },
+  { title: "Paste it on your laptop", body: "pap seal openai: a hidden prompt, never in a chat." },
+  { title: "Pick the agent and the limits", body: "Max reads and days. Approve once on your phone." },
+  { title: "Sealed", body: "It opens only with the agent’s signature and your Face ID." },
 ];
 
 export function Credentials() {
@@ -126,36 +126,36 @@ export function Credentials() {
         {CRED_STEPS.map((s, i) => (
           <li
             key={s.title}
-            className={`flex items-start gap-4 rounded-2xl border p-5 transition-all duration-500 ${
-              step === i ? "border-accent bg-surface shadow-[0_20px_50px_-30px_rgba(122,31,92,0.5)]" : "border-border bg-surface/50"
+            className={`flex items-start gap-4 rounded-sm border p-5 transition-all duration-500 ${
+              step === i ? "border-accent bg-surface" : "border-border bg-surface/50"
             }`}
           >
-            <span className="text-2xl" aria-hidden>
-              {s.icon}
+            <span className="font-mono text-[13px] leading-8 text-accent" aria-hidden>
+              0{i + 1}
             </span>
             <div>
-              <p className="font-serif text-2xl leading-tight">{s.title}</p>
+              <p className="font-serif text-[22px] font-semibold leading-tight">{s.title}</p>
               <p className="mt-1 text-[15px] text-muted">{s.body}</p>
             </div>
           </li>
         ))}
       </ol>
       <div className="flex flex-col gap-4">
-        <div className="rounded-2xl bg-[#1c1420] p-5 font-mono text-[13px] leading-7 text-[#e9e2f0]">
-          <div className="text-[#a89bab]">$ node mcp/dist/pap-cli.mjs seal openai --max-reads 10 --days 7</div>
+        <div className="rounded-sm bg-code-bg p-5 font-mono text-[13px] leading-7 text-code-fg">
+          <div className="text-code-dim">$ node mcp/dist/pap-cli.mjs seal openai --max-reads 10 --days 7</div>
           <div>Secret value (hidden, Enter to finish): ••••••••••••</div>
-          <div className="text-[#e58cbd]">🔒 Sealed “openai” for Claude Code: only opens with its signature + yours.</div>
-          <div className="text-[#a89bab]">Approve on your phone to activate it (10 reads, 7 days)</div>
+          <div className="text-code-hi">Sealed “openai” for Claude Code: only opens with its signature + yours.</div>
+          <div className="text-code-dim">Approve on your phone to activate it (10 reads, 7 days)</div>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Link href="/vault/new" className="btn-sweep inline-flex min-h-11 items-center rounded-full bg-accent px-5 text-[15px] font-semibold text-white hover:bg-accent-deep">
-            Or seal it from your phone →
+          <Link href="/vault/new" className="inline-flex min-h-11 items-center rounded-md bg-accent px-5 text-[15px] font-medium text-white hover:bg-accent-deep">
+            Or seal it from your phone
           </Link>
         </div>
         <p className="text-sm text-muted">
-          Once released, the agent has the value — so seal short-lived, limited keys.{" "}
+          Once released, the agent has the value, so seal short-lived, limited keys.{" "}
           <a className="text-accent underline underline-offset-2" href={`${REPO}/blob/main/docs/SECURITY.md#sealed-secrets--threat-model`} target="_blank" rel="noreferrer">
-            What it protects, and what it doesn’t →
+            What it protects, and what it doesn’t
           </a>
         </p>
       </div>
@@ -173,9 +173,9 @@ export function HeroCTA() {
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);
-  const primary = "btn-sweep inline-flex min-h-12 items-center justify-center rounded-full bg-accent px-6 text-[15px] font-semibold text-white hover:bg-accent-deep";
+  const primary = "inline-flex min-h-12 items-center justify-center rounded-md bg-accent px-6 text-[15px] font-medium text-white hover:bg-accent-deep";
   const secondary =
-    "inline-flex min-h-12 items-center justify-center rounded-full border border-foreground/30 bg-surface/60 px-6 text-[15px] font-semibold text-foreground backdrop-blur hover:bg-surface";
+    "inline-flex min-h-12 items-center justify-center rounded-md border border-foreground/25 bg-surface px-6 text-[15px] font-medium text-foreground hover:bg-paper-deep";
   const open = (
     <Link key="open" href="/wallet" className={phone ? primary : secondary}>
       Open my passport
@@ -202,7 +202,7 @@ export function Marquee() {
           <span key={k} className="flex" aria-hidden={k === 1}>
             {items.map((t) => (
               <span key={t} className="flex items-center px-6">
-                {t} <span className="ml-12 text-accent">✦</span>
+                {t} <span className="ml-12 text-border" aria-hidden>/</span>
               </span>
             ))}
           </span>
@@ -212,7 +212,7 @@ export function Marquee() {
   );
   return (
     <div
-      className={`marquee-wrap flex flex-col gap-2 border-y border-border bg-paper-deep/60 py-3 font-cond text-[13px] font-semibold uppercase tracking-[0.22em] text-muted ${paused ? "paused" : ""}`}
+      className={`marquee-wrap flex flex-col gap-2 border-y border-border bg-paper-deep/60 py-3 font-mono text-[12px] uppercase tracking-[0.12em] text-muted ${paused ? "paused" : ""}`}
       onClick={() => setPaused((p) => !p)}
       aria-label="Works with"
     >

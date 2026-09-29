@@ -73,12 +73,12 @@ export function Story() {
             data-i={i}
             className="flex min-h-[70svh] flex-col justify-center py-10 md:min-h-[80vh]"
           >
-            <p className={`font-cond text-[12px] font-semibold uppercase tracking-[0.22em] transition-colors ${active === i ? "text-accent" : "text-muted"}`}>
-              {String(i + 1).padStart(2, "0")} — {s.kicker}
+            <p className={`font-mono text-[12px] uppercase tracking-[0.08em] transition-colors ${active === i ? "text-accent" : "text-muted"}`}>
+              2.{i + 1}&nbsp;&nbsp;{s.kicker}
             </p>
             <h3
-              className={`mt-3 max-w-xl font-serif text-[40px] font-medium leading-[1.02] tracking-tight transition-all duration-500 md:text-6xl ${
-                active === i ? "text-foreground" : "text-foreground/60"
+              className={`mt-3 max-w-xl font-serif text-[32px] font-semibold leading-[1.12] tracking-tight transition-all duration-500 md:text-[44px] ${
+                active === i ? "text-foreground" : "text-foreground/45"
               }`}
             >
               {s.title}
@@ -119,27 +119,27 @@ export function Story() {
 export function Phone({ children, small = false }: { children: ReactNode; small?: boolean }) {
   return (
     <div
-      className={`relative mx-auto overflow-hidden rounded-[2.6rem] border-[10px] border-[#1c1420] bg-background shadow-[0_40px_90px_-40px_rgba(122,31,92,0.55)] ${
+      className={`relative mx-auto overflow-hidden rounded-[2.6rem] border-[10px] border-[#16181d] bg-background shadow-[0_30px_70px_-40px_rgba(22,24,29,0.45)] ${
         small ? "h-[420px] w-[250px]" : "h-[680px] w-[340px]"
       }`}
     >
-      <div className="absolute left-1/2 top-2 z-20 h-5 w-24 -translate-x-1/2 rounded-full bg-[#1c1420]" aria-hidden />
+      <div className="absolute left-1/2 top-2 z-20 h-5 w-24 -translate-x-1/2 rounded-full bg-[#16181d]" aria-hidden />
       <div className={`relative h-full w-full ${small ? "text-[12px]" : "text-[14px]"}`}>{children}</div>
     </div>
   );
 }
 
 const Card = ({ children }: { children: ReactNode }) => (
-  <div className="rounded-2xl border border-border bg-surface p-4 shadow-[0_8px_24px_-18px_rgba(28,20,32,0.35)]">{children}</div>
+  <div className="rounded-lg border border-border bg-surface p-4 shadow-[0_8px_24px_-18px_rgba(22,24,29,0.3)]">{children}</div>
 );
 const Screen = ({ title, children }: { title: string; children: ReactNode }) => (
   <div className="flex h-full flex-col gap-3 px-4 pb-6 pt-10">
-    <p className="font-cond text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">{title}</p>
+    <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-muted">{title}</p>
     {children}
   </div>
 );
 const Btn = ({ children, tone = "dark" }: { children: ReactNode; tone?: "dark" | "ghost" }) => (
-  <div className={`rounded-full py-3 text-center font-semibold ${tone === "dark" ? "bg-foreground text-white" : "text-bad"}`}>{children}</div>
+  <div className={`rounded-md py-3 text-center font-medium ${tone === "dark" ? "bg-foreground text-white" : "text-bad"}`}>{children}</div>
 );
 
 /** Deterministic QR-looking grid (decorative). */
@@ -202,8 +202,8 @@ function VisaScreen({ on }: { on: boolean }) {
         </div>
       </Card>
       <Card>
-        <p className="font-semibold">🔑 openai</p>
-        <p className="text-muted">3 of 10 reads · until Oct 3</p>
+        <p className="font-semibold">Secret: openai</p>
+        <p className="text-muted">3 of 10 reads, until Oct 3</p>
       </Card>
       <p className="mt-auto text-center text-muted">Enforced by AgentPassport on HSK Chain</p>
     </Screen>
@@ -214,7 +214,7 @@ function Stamp({ on, children, tone = "accent" }: { on: boolean; children: React
   const c = tone === "ok" ? "border-ok text-ok" : tone === "bad" ? "border-bad text-bad" : "border-accent text-accent";
   return (
     <span
-      className={`absolute -top-3 right-3 z-10 rounded-md border-2 bg-surface px-2 py-0.5 font-cond text-[11px] font-semibold uppercase tracking-[0.2em] ${c} ${on ? "stamp-in" : "opacity-0 motion-reduce:opacity-100"}`}
+      className={`absolute -top-3 right-3 z-10 rounded-md border-2 bg-surface px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] ${c} ${on ? "stamp-in" : "opacity-0 motion-reduce:opacity-100"}`}
     >
       {children}
     </span>
@@ -229,7 +229,7 @@ function ApproveScreen({ on }: { on: boolean }) {
           <Stamp on={on}>Approved</Stamp>
           <p className="font-semibold">Claude Code @ laptop</p>
           <p className="text-muted">wants to</p>
-          <p className="mt-1 font-serif text-3xl leading-tight">💸 Send 10 demoUSDT</p>
+          <p className="mt-1 font-serif text-3xl font-semibold leading-tight">Send 10 demoUSDT</p>
           <div className="mt-3 flex justify-between border-t border-border pt-2">
             <span className="text-muted">To</span>
             <span>María</span>
@@ -258,9 +258,9 @@ function SecretScreen({ on }: { on: boolean }) {
           </Stamp>
           <p className="font-semibold">Claude Code @ laptop</p>
           <p className="text-muted">wants to</p>
-          <p className="mt-1 font-serif text-3xl leading-tight">🔑 Read “openai”</p>
+          <p className="mt-1 font-serif text-3xl font-semibold leading-tight">Read “openai”</p>
           <div className="mt-3 rounded-xl border border-accent/40 bg-accent/5 p-3">
-            <p className="font-cond text-[10px] uppercase tracking-[0.2em] text-muted">Reason given by the agent</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">Reason given by the agent</p>
             <p className="mt-1">“Run the integration tests”</p>
           </div>
           <p className="mt-3 text-muted">Unlocks your layer only.</p>
@@ -275,10 +275,10 @@ function SecretScreen({ on }: { on: boolean }) {
 
 function ChainScreen({ on }: { on: boolean }) {
   const rows: [string, string, "ok" | "bad"][] = [
-    ["💸 10 demoUSDT → María", "0xe152…", "ok"],
-    ["🔑 read “openai”", "0x7a41…", "ok"],
-    ["💸 25 demoUSDT → API", "0x629d…", "ok"],
-    ["💸 500 demoUSDT", "LimitExceeded()", "bad"],
+    ["Pay 10 demoUSDT to María", "0xe152…", "ok"],
+    ["Read “openai”", "0x7a41…", "ok"],
+    ["Pay 25 demoUSDT to API", "0x629d…", "ok"],
+    ["Pay 500 demoUSDT", "LimitExceeded()", "bad"],
   ];
   return (
     <Screen title="Passport stamps">

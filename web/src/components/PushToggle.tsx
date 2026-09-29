@@ -61,7 +61,7 @@ export function PushToggle({ w }: { w: StoredWallet }) {
   return (
     <>
       <Button variant="ghost" onClick={enable} disabled={busy}>
-        {busy ? "Enabling…" : "🔔 Get approvals as notifications"}
+        {busy ? "Enabling…" : "Get approvals as notifications"}
       </Button>
       {err && <Notice kind="error">{err}</Notice>}
     </>

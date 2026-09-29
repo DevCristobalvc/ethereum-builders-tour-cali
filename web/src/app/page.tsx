@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { HowItWorks } from "@/components/landing/how";
 import { Credentials, HeroCTA, Install, Marquee } from "@/components/landing/install";
 import { LiveStats } from "@/components/landing/LiveStats";
@@ -17,153 +18,177 @@ export const metadata: Metadata = {
 
 const REPO = "https://github.com/DevCristobalvc/ethereum-builders-tour-cali";
 const CONTRACTS: { name: string; key: keyof typeof ADDRESSES; role: string }[] = [
-  { name: "AgentPassport", key: "AgentPassport", role: "visas · pay() · secret reads" },
-  { name: "IdentityRegistry", key: "IdentityRegistry", role: "ERC-8004 · agent ↔ human" },
+  { name: "AgentPassport", key: "AgentPassport", role: "visas, pay(), secret reads" },
+  { name: "IdentityRegistry", key: "IdentityRegistry", role: "ERC-8004, agent to human" },
   { name: "DemoUSDT", key: "DemoUSDT", role: "test stablecoin" },
   { name: "ReputationRegistry", key: "ReputationRegistry", role: "ERC-8004 feedback" },
   { name: "PassportRegistry", key: "PassportRegistry", role: "ZK membership (roadmap)" },
   { name: "Groth16Verifier", key: "Groth16Verifier", role: "ZK verifier (roadmap)" },
 ];
 
-const eyebrow = "font-cond text-[12px] font-semibold uppercase tracking-[0.22em] text-accent";
-const h2 = "font-serif text-[40px] font-medium leading-[1.02] tracking-tight text-foreground md:text-6xl";
+const REFERENCES: [string, string][] = [
+  ["Architecture", "docs/ARCHITECTURE.md"],
+  ["JSON-RPC interface", "docs/RPC.md"],
+  ["Guide for agents", "docs/AGENTS.md"],
+  ["Security and threat model", "docs/SECURITY.md"],
+  ["Service gate", "docs/GATE.md"],
+];
+
+const h2 = "font-serif text-[34px] font-semibold leading-[1.1] tracking-tight text-foreground md:text-[44px]";
+const lead = "mt-4 max-w-2xl text-[18px] leading-relaxed text-muted";
+
+/** Numbered section heading, as in a paper: "3  Protocol". */
+function Heading({ n, label, title, children }: { n: number; label: string; title: string; children?: ReactNode }) {
+  return (
+    <Reveal>
+      <p className="eyebrow">
+        {n}&nbsp;&nbsp;{label}
+      </p>
+      <h2 className={`${h2} mt-3 max-w-3xl`}>{title}</h2>
+      {children}
+    </Reveal>
+  );
+}
 
 export default function Landing() {
   return (
     <div className="relative overflow-x-clip">
       {/* nav */}
-      <header className="fixed inset-x-0 top-0 z-30 border-b border-border/70 bg-background/80 backdrop-blur">
+      <header className="fixed inset-x-0 top-0 z-30 border-b border-border bg-background/90 backdrop-blur">
         <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 md:px-5">
           <Link href="/" className="flex items-center gap-2 text-foreground">
             <Logo />
-            <span className="font-cond text-[15px] font-semibold uppercase tracking-[0.16em]">
-              PAP<span className="hidden sm:inline"> · Passport Agent Protocol</span>
+            <span className="text-[15px] font-semibold tracking-tight">
+              PAP<span className="hidden font-normal text-muted sm:inline"> · Passport Agent Protocol</span>
             </span>
           </Link>
           <div className="hidden items-center gap-7 text-sm text-muted md:flex">
-            <a href="#story" className="hover:text-foreground">Story</a>
-            <a href="#how" className="hover:text-foreground">How it works</a>
-            <a href="#install" className="hover:text-foreground">Install</a>
-            <a href="#keys" className="hover:text-foreground">API keys</a>
+            <a href="#story" className="hover:text-foreground">Design</a>
+            <a href="#how" className="hover:text-foreground">Protocol</a>
+            <a href="#install" className="hover:text-foreground">Integration</a>
+            <a href="#keys" className="hover:text-foreground">Credentials</a>
             <a href={REPO} target="_blank" rel="noreferrer" className="hover:text-foreground">GitHub</a>
           </div>
-          <Link href="/wallet" className="btn-sweep inline-flex min-h-10 items-center rounded-full bg-accent px-4 text-[14px] font-semibold text-white hover:bg-accent-deep">
+          <Link href="/wallet" className="inline-flex min-h-10 items-center rounded-md bg-accent px-4 text-[14px] font-medium text-white hover:bg-accent-deep">
             Open wallet
           </Link>
         </nav>
       </header>
 
-      {/* 0 · hero */}
-      <section className="grain relative flex min-h-[100svh] items-end overflow-hidden">
-        <Image src="/fondo.jpg" alt="" fill priority sizes="100vw" quality={70} className="object-cover object-center" aria-hidden />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" aria-hidden />
-        <div className="absolute inset-0 bg-gradient-to-r from-background/30 via-transparent to-background/30" aria-hidden />
-        <div className="pointer-events-none absolute left-[49.6%] top-[50.2%] z-10" aria-hidden>
-          <span className="ripple absolute h-16 w-16 rounded-full border border-accent-soft/60" />
-          <span className="ripple d2 absolute h-16 w-16 rounded-full border border-accent-soft/60" />
-          <span className="ripple d3 absolute h-16 w-16 rounded-full border border-accent-soft/60" />
-          <span className="spark absolute h-5 w-5 rounded-full bg-[#fff2c8] shadow-[0_0_40px_14px_rgba(255,220,150,0.8),0_0_90px_40px_rgba(192,74,138,0.35)]" />
-        </div>
-        <div className="relative z-10 mx-auto w-full max-w-6xl px-4 pb-14 pt-32 md:px-5 md:pb-24">
-          <h1 className="max-w-4xl font-serif text-[14vw] font-medium leading-[0.92] tracking-tight text-foreground md:text-[104px]">
+      {/* title block */}
+      <section className="mx-auto grid max-w-6xl gap-12 px-4 pb-16 pt-28 md:grid-cols-[1.25fr_1fr] md:items-end md:px-5 md:pb-24 md:pt-40">
+        <div>
+          <p className="eyebrow text-muted">White paper · v1.0 · HSK Chain testnet</p>
+          <h1 className="mt-5 font-serif text-[44px] font-semibold leading-[1.04] tracking-tight text-foreground md:text-[68px]">
             Your agent has a passport.
             <br />
-            <em className="text-accent">You stamp the visas.</em>
+            <span className="font-normal italic text-accent">You stamp the visas.</span>
           </h1>
-          <p className="rise-2 mt-6 max-w-md text-lg leading-relaxed text-foreground/80">
-            Payments and API keys, approved from your phone. Enforced on-chain.
-          </p>
-          <div className="rise-3 mt-8">
+          <p className="mt-6 text-[15px] text-muted">Passport Agent Protocol · Ethereum Builders Tour, Cali · 2026</p>
+          <div className="mt-8 border-l-2 border-accent pl-5">
+            <p className="eyebrow text-muted">Abstract</p>
+            <p className="mt-2 max-w-xl font-serif text-[18px] leading-relaxed text-foreground/90">
+              AI agents need to pay and to use credentials, but a private key in an environment file is unlimited, permanent authority. PAP gives
+              each agent an on-chain identity (ERC-8004) and scoped, expiring visas. Payments and secret reads are approved from the owner&apos;s
+              phone with a passkey and enforced by a contract, not by the app.
+            </p>
+          </div>
+          <div className="mt-8">
             <HeroCTA />
           </div>
         </div>
+        <figure>
+          <div className="relative aspect-[4/3] overflow-hidden rounded-sm border border-border bg-paper-deep">
+            <Image
+              src="/fondo-sm.jpg"
+              alt="Detail after Michelangelo's Creation of Adam: a robotic hand reaching toward a human hand."
+              fill
+              priority
+              sizes="(min-width: 768px) 40vw, 100vw"
+              quality={70}
+              className="object-cover object-center grayscale"
+            />
+          </div>
+          <figcaption className="mt-3 text-[13px] leading-snug text-muted">
+            <span className="font-semibold text-foreground">Figure 1.</span> The agent reaches out; the human grants the reach.
+          </figcaption>
+        </figure>
       </section>
 
-      {/* 1 · marquee */}
+      {/* compatibility */}
       <Marquee />
 
-      {/* 2 · problem */}
-      <section className="mx-auto max-w-6xl px-4 py-24 md:px-5 md:py-36">
-        <Reveal>
-          <p className="font-mono text-[15px] text-muted md:text-lg">
+      {/* 1 · problem */}
+      <section className="mx-auto max-w-6xl px-4 py-20 md:px-5 md:py-28">
+        <Heading n={1} label="Problem" title="A key in .env is a blank check.">
+          <p className="mt-6 font-mono text-[15px] text-muted">
             <span className="strike">PRIVATE_KEY=0x4c0883a6…</span>
           </p>
-          <h2 className={`${h2} mt-6 max-w-3xl`}>A key in .env is a blank check.</h2>
-          <p className="mt-4 max-w-md text-[17px] text-muted">Full access, forever, one prompt injection away.</p>
-        </Reveal>
+          <p className={lead}>Full access, forever, one prompt injection away.</p>
+        </Heading>
       </section>
 
-      {/* 3–7 · story */}
-      <section id="story" className="border-t border-border bg-paper-deep/30">
+      {/* 2 · design */}
+      <section id="story" className="border-t border-border bg-paper-deep/50">
+        <div className="mx-auto max-w-6xl px-4 pt-20 md:px-5 md:pt-28">
+          <Heading n={2} label="Design" title="Five properties, one per screen." />
+        </div>
         <Story />
       </section>
 
-      {/* 8 · how it works */}
-      <section id="how" className="border-y border-border py-24 md:py-32">
+      {/* 3 · protocol */}
+      <section id="how" className="border-y border-border py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-4 md:px-5">
-          <Reveal>
-            <p className={eyebrow}>How it works</p>
-            <h2 className={`${h2} mt-4`}>Who signs what.</h2>
-          </Reveal>
+          <Heading n={3} label="Protocol" title="Who signs what." />
           <div className="mt-12">
             <HowItWorks />
           </div>
         </div>
       </section>
 
-      {/* 9 · install */}
-      <section id="install" className="mx-auto max-w-6xl px-4 py-24 md:px-5 md:py-32">
-        <Reveal>
-          <p className={eyebrow}>Install</p>
-          <h2 className={`${h2} mt-4`}>Install it in your agent.</h2>
-          <p className="mt-4 text-[17px] text-muted">One command.</p>
-        </Reveal>
+      {/* 4 · integration */}
+      <section id="install" className="mx-auto max-w-6xl px-4 py-20 md:px-5 md:py-28">
+        <Heading n={4} label="Integration" title="Install it in your agent.">
+          <p className={lead}>One command for Claude Code; a single bundled file for any other MCP client or language.</p>
+        </Heading>
         <div className="mt-12">
           <Install />
         </div>
       </section>
 
-      {/* 10 · credentials */}
-      <section id="keys" className="border-y border-border bg-paper-deep/30 py-24 md:py-32">
+      {/* 5 · credentials */}
+      <section id="keys" className="border-y border-border bg-paper-deep/50 py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-4 md:px-5">
-          <Reveal>
-            <p className={eyebrow}>API keys</p>
-            <h2 className={`${h2} mt-4 max-w-3xl`}>Hand over a key without handing it over.</h2>
-          </Reveal>
+          <Heading n={5} label="Sealed credentials" title="Hand over a key without handing it over." />
           <div className="mt-12">
             <Credentials />
           </div>
         </div>
       </section>
 
-      {/* services / gate */}
-      <section className="mx-auto max-w-6xl px-4 py-24 md:px-5 md:py-32">
+      {/* 6 · services */}
+      <section className="mx-auto max-w-6xl px-4 py-20 md:px-5 md:py-28">
         <div className="grid items-center gap-10 md:grid-cols-2">
-          <Reveal>
-            <p className={eyebrow}>Services</p>
-            <h2 className={`${h2} mt-4`}>Services check the visa, not you.</h2>
-            <p className="mt-4 max-w-md text-[17px] text-muted">An x402-style 402, a signed challenge, one on-chain check. No human prompt.</p>
-          </Reveal>
+          <Heading n={6} label="Service verification" title="Services check the visa, not you.">
+            <p className={lead}>An x402-style 402, a signed challenge, one on-chain check. No human prompt.</p>
+          </Heading>
           <Reveal delay={150}>
             <Terminal />
           </Reveal>
         </div>
       </section>
 
-      {/* 11 · live */}
-      <section id="chain" className="border-t border-border bg-paper-deep/30 py-24 md:py-32">
+      {/* 7 · deployment */}
+      <section id="chain" className="border-t border-border bg-paper-deep/50 py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-4 md:px-5">
-          <Reveal>
-            <p className={eyebrow}>Live</p>
-            <h2 className={`${h2} mt-4`}>Live on HSK Chain.</h2>
-          </Reveal>
+          <Heading n={7} label="Deployment" title="Live on HSK Chain." />
           <Reveal className="mt-12">
             <LiveStats />
           </Reveal>
-          <details className="mt-8 overflow-hidden rounded-2xl border border-border bg-surface">
-            <summary className="cursor-pointer px-5 py-4 font-cond text-[13px] font-semibold uppercase tracking-[0.18em] text-muted">
-              Six verified contracts
-            </summary>
+          <div className="mt-8 overflow-hidden rounded-sm border border-border bg-surface">
+            <p className="border-b border-border px-5 py-3 text-[13px] text-muted">
+              <span className="font-semibold text-foreground">Table 1.</span> Verified contracts on HSK Chain testnet (chainId 133).
+            </p>
             <table className="w-full text-sm">
               <tbody className="divide-y divide-border">
                 {CONTRACTS.map((c) => {
@@ -186,45 +211,46 @@ export default function Landing() {
                 })}
               </tbody>
             </table>
-            <p className="px-5 py-3 text-[12px] text-muted">
-              chainId 133 ·{" "}
+            <p className="border-t border-border px-5 py-3 text-[12px] text-muted">
+              Explorer:{" "}
               <a className="text-accent hover:underline" href={EXPLORER} target="_blank" rel="noreferrer">
                 testnet-explorer.hskchain.net
               </a>
             </p>
-          </details>
+          </div>
         </div>
       </section>
 
-      {/* 12 · footer */}
-      <footer className="grain relative overflow-hidden border-t border-border">
-        <div className="absolute inset-0 bg-cover bg-center opacity-[0.18]" style={{ backgroundImage: "url(/fondo-blur.jpg)" }} aria-hidden />
-        <div className="relative mx-auto max-w-6xl px-4 py-20 md:px-5">
-          <h2 className={h2}>Try it on your phone.</h2>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link href="/wallet" className="btn-sweep inline-flex min-h-12 items-center justify-center rounded-full bg-accent px-6 text-[15px] font-semibold text-white hover:bg-accent-deep">
-              Open my passport
-            </Link>
-            <a href={REPO} target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center rounded-full border border-foreground/30 px-6 text-[15px] font-semibold text-foreground hover:bg-surface">
-              GitHub
-            </a>
-          </div>
-          <ul className="mt-12 flex flex-wrap gap-x-6 gap-y-2 text-sm">
-            {[
-              ["Architecture", "docs/ARCHITECTURE.md"],
-              ["JSON-RPC", "docs/RPC.md"],
-              ["For agents", "docs/AGENTS.md"],
-              ["Security", "docs/SECURITY.md"],
-              ["Gate", "docs/GATE.md"],
-            ].map(([t, p]) => (
-              <li key={p}>
-                <a className="text-foreground/80 hover:text-accent" href={`${REPO}/blob/main/${p}`} target="_blank" rel="noreferrer">
-                  {t} →
+      {/* references + footer */}
+      <footer className="border-t border-border">
+        <div className="mx-auto max-w-6xl px-4 py-20 md:px-5">
+          <div className="grid gap-12 md:grid-cols-2">
+            <div>
+              <h2 className={h2}>Try it on your phone.</h2>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link href="/wallet" className="inline-flex min-h-12 items-center justify-center rounded-md bg-accent px-6 text-[15px] font-medium text-white hover:bg-accent-deep">
+                  Open my passport
+                </Link>
+                <a href={REPO} target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center justify-center rounded-md border border-foreground/25 px-6 text-[15px] font-medium text-foreground hover:bg-surface">
+                  Source on GitHub
                 </a>
-              </li>
-            ))}
-          </ul>
-          <div className="rule mt-12" />
+              </div>
+            </div>
+            <div>
+              <p className="eyebrow">References</p>
+              <ol className="mt-4 flex flex-col gap-2 text-[15px]">
+                {REFERENCES.map(([t, p], i) => (
+                  <li key={p} className="flex gap-3">
+                    <span className="font-mono text-[13px] leading-6 text-muted">[{i + 1}]</span>
+                    <a className="text-foreground underline decoration-border underline-offset-4 hover:text-accent hover:decoration-accent" href={`${REPO}/blob/main/${p}`} target="_blank" rel="noreferrer">
+                      {t}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+          <div className="rule mt-16" />
           <p className="mt-6 flex flex-wrap items-center justify-between gap-2 text-[12px] text-muted">
             <span>Passport Agent Protocol · Ethereum Builders Tour Cali · 2026</span>
             <span>@DevCristobalvc</span>
