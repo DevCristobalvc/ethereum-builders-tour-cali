@@ -1,1135 +1,1191 @@
-# PAP — Backlog: secretos con doble firma, JSON-RPC, UX y skills
+# PAP — Backlog: dual-signature secrets, JSON-RPC, UX, skills and QA
 
-Continuación de `todo.md` (hackathon). Objetivo: que el humano pueda sellar una credencial (API key, token) para su agente, y que el agente solo pueda leerla cuando **él firma la solicitud y el humano firma la aprobación** desde el teléfono. Debe funcionar con **cualquier agente**: MCP, CLI, JSON-RPC y signer EIP-1193.
+Continuation of `todo.md` (hackathon). Goal: the human can seal a credential (API key, token) for their agent, and the agent can only read it when **the agent signs the request and the human signs the approval** from their phone. It must work with **any agent**: MCP, CLI, JSON-RPC and an EIP-1193 signer.
 
-## Cómo usar este documento
+## How to use this document
 
-- Cada ticket tiene: **ID**, **título**, **épica**, **dependencias**, **estado**, **descripción**, **casos de uso**, **criterios de aceptación**, **pruebas** y **resumen post-desarrollo**.
-- Estados: `to do` · `in progress` · `done` · `problem`.
-- `problem` = no se pudo resolver. Es **obligatorio** escribir el motivo y qué se intentó en el resumen.
-- Al cerrar un ticket se llena el **resumen post-desarrollo**: qué se hizo, decisiones, desviaciones del plan, deuda pendiente.
-- Commits y PRs referencian el ID: `feat(secrets): PAP-02 relay secret storage`.
-- Antes de cada commit que toque código: `npm run build` en `web/` y `mcp/`, y `forge test` en `contracts/`. El CI (`.github/workflows/ci.yml`) lo repite en cada push.
+- Every ticket has: **ID**, **title**, **epic**, **dependencies**, **status**, **description**, **use cases**, **acceptance criteria**, **tests** and **post-development summary**.
+- Statuses: `to do` · `in progress` · `done` · `problem`.
+- `problem` = could not be solved. The summary **must** state why and what was tried.
+- When a ticket is closed, fill in the **post-development summary**: what was done, decisions, deviations from the plan, remaining debt.
+- Commits and PRs reference the ID: `feat(secrets): PAP-02 relay secret storage`.
+- Before every commit that touches code: `npm run build` in `web/` and `mcp/`, and `forge test` in `contracts/`. CI (`.github/workflows/ci.yml`) repeats them on every push.
+- Everything in the repository is written in English.
 
-## Decisiones de diseño (base para todos los tickets)
+## Design decisions (basis for every ticket)
 
-1. **Cifrado por capas con ECIES secp256k1.** La identity key del agente (`~/.pap/agent.json`) y la llave EVM del teléfono son secp256k1, así que se cifra directo a sus llaves públicas sin crear llaves nuevas. `guardado = ECIES(teléfono, {name, agent, inner: ECIES(agente, {name, agent, secret})})`: capa externa → teléfono, capa interna → agente. *(Ajustado en PAP-01: con este orden el teléfono nunca ve el texto plano; solo quita su capa.)*
-2. **Doble firma.** El agente firma la solicitud (EIP-712 `RevealRequest {agent, name, reason, nonce, expiry}`); el teléfono verifica, pide Face ID, quita su capa y firma la aprobación (EIP-712 `RevealApproval`, que liga el hash del blob entregado).
-3. **El relay nunca ve texto plano** y no guarda llaves (se mantiene la promesa actual).
-4. **Visa on-chain para secretos.** Scope `keccak256("secret:" + name)` en `AgentPassport`: `grant(agentId, scope, maxAccesos, expiry)`; cada revelación hace `record(agentId, scope, 1, ref)`. Límite, expiración y revocación se reutilizan sin cambiar contratos.
-5. **Modelo de amenaza honesto.** Protege la *entrega*, no el *uso*: una vez revelado, el agente tiene el secreto. Se mitiga con keys de corta vida, alcance limitado y rotación.
-6. **v1 solo con política "pedir siempre".** Una política automática ("1 vez por día" sin Face ID) no es posible con cifrado por capas sin que el teléfono esté en línea; queda para después (ver PAP-20).
+1. **Layered encryption with ECIES secp256k1.** The agent's identity key (`~/.pap/agent.json`) and the phone's EVM key are secp256k1, so we encrypt straight to their public keys without creating new keys. `stored = ECIES(phone, {name, agent, inner: ECIES(agent, {name, agent, secret})})`: outer layer → phone, inner layer → agent. *(Adjusted in PAP-01: with this order the phone never sees the plaintext; it only removes its own layer.)*
+2. **Dual signature.** The agent signs the request (EIP-712 `RevealRequest {agent, name, reason, nonce, expiry}`); the phone verifies it, asks for Face ID, removes its layer and signs the approval (EIP-712 `RevealApproval`, which binds the hash of the released blob).
+3. **The relay never sees plaintext** and stores no keys (the existing promise holds).
+4. **On-chain visa for secrets.** Scope `keccak256("secret:" + name)` on `AgentPassport`: `grant(agentId, scope, maxReads, expiry)`; every reveal calls `record(agentId, scope, 1, ref)`. Limit, expiry and revocation are reused without changing the contracts.
+5. **Honest threat model.** It protects the *delivery*, not the *use*: once revealed, the agent has the secret. Mitigated with short-lived, narrowly scoped keys and rotation.
+6. **v1 only has an "always ask" policy.** An automatic policy ("once a day" without Face ID) is not possible with layered encryption unless the phone is online; it is left for later (see PAP-20).
 
-## Resumen de tickets
+## Ticket summary
 
-| ID | Título | Épica | Depende de | Estado |
+| ID | Title | Epic | Depends on | Status |
 |---|---|---|---|---|
-| PAP-01 | Librería de cifrado por capas (ECIES) | Secretos | — | done |
-| PAP-02 | Relay: almacenamiento de secretos + request `reveal` | Secretos | PAP-01, PAP-03 | done |
-| PAP-03 | Tipos EIP-712 para solicitud y aprobación | Secretos | — | done |
-| PAP-04 | Teléfono: tarjeta de aprobación de secretos | Secretos / UX | PAP-02, PAP-15 | done |
-| PAP-05 | MCP: tool `pap_secret` | Secretos | PAP-02 | done |
-| PAP-06 | CLI: `pap seal` y `pap secret get` | Secretos | PAP-02 | done |
-| PAP-07 | Visa y auditoría on-chain para secretos | Secretos | PAP-04 | done |
-| PAP-08 | JSON-RPC 2.0: endpoint `/api/rpc` con namespace `pap_*` | JSON-RPC | PAP-02 | done |
-| PAP-09 | Signer local EIP-1193 (`pap rpc`) | JSON-RPC | PAP-08 | done |
-| PAP-10 | `eth_getEncryptionPublicKey` / `eth_decrypt` sobre doble firma | JSON-RPC | PAP-09 | done |
-| PAP-11 | Métodos `wallet_*` (EIP-7715, EIP-5792, capabilities) | JSON-RPC | PAP-09 | done |
-| PAP-12 | `/wallet`: pestañas Agentes · Bóveda · Sellos | UX | PAP-02, PAP-15 | done |
-| PAP-13 | Notificaciones push en la PWA | UX | PAP-04 | done |
-| PAP-14 | `/vault/new`: sellar desde el navegador | UX | PAP-01, PAP-02 | done |
-| PAP-15 | Mockups de aprobación y Bóveda | UX | — | done |
-| PAP-16 | Skills `pap-secrets` y `pap-seal` | Skills | PAP-05, PAP-06 | done |
+| PAP-01 | Layered encryption library (ECIES) | Secrets | — | done |
+| PAP-02 | Relay: secret storage + `reveal` request | Secrets | PAP-01, PAP-03 | done |
+| PAP-03 | EIP-712 types for request and approval | Secrets | — | done |
+| PAP-04 | Phone: secret approval card | Secrets / UX | PAP-02, PAP-15 | done |
+| PAP-05 | MCP: `pap_secret` tool | Secrets | PAP-02 | done |
+| PAP-06 | CLI: `pap seal` and `pap secret get` | Secrets | PAP-02 | done |
+| PAP-07 | On-chain visa and audit for secrets | Secrets | PAP-04 | done |
+| PAP-08 | JSON-RPC 2.0: `/api/rpc` endpoint with the `pap_*` namespace | JSON-RPC | PAP-02 | done |
+| PAP-09 | Local EIP-1193 signer (`pap rpc`) | JSON-RPC | PAP-08 | done |
+| PAP-10 | `eth_getEncryptionPublicKey` / `eth_decrypt` over dual signature | JSON-RPC | PAP-09 | done |
+| PAP-11 | `wallet_*` methods (EIP-7715, EIP-5792, capabilities) | JSON-RPC | PAP-09 | done |
+| PAP-12 | `/wallet`: Agents · Vault · Stamps tabs | UX | PAP-02, PAP-15 | done |
+| PAP-13 | Push notifications in the PWA | UX | PAP-04 | done |
+| PAP-14 | `/vault/new`: seal from the browser | UX | PAP-01, PAP-02 | done |
+| PAP-15 | Approval and Vault mockups | UX | — | done |
+| PAP-16 | Skills `pap-secrets` and `pap-seal` | Skills | PAP-05, PAP-06 | done |
 | PAP-17 | Skills `pap-payments`, `pap-gate`, `pap-onboarding`, `pap-rpc` | Skills | PAP-09 | done |
-| PAP-18 | Plugin de Claude Code + `docs/AGENTS.md` | Skills | PAP-16, PAP-17 | done |
-| PAP-19 | Documentación: arquitectura de secretos y modelo de amenaza | Docs | PAP-07 | done |
-| PAP-20 | Investigación: políticas automáticas sin Face ID | Secretos | PAP-07 | done |
-| PAP-21 | Referencia Hermes Agent + storyboard de la landing | Landing | — | done |
-| PAP-22 | Landing narrativa con animaciones por scroll | Landing | PAP-21 | done |
-| PAP-23 | Diagrama animado "Cómo funciona" | Landing | PAP-21 | done |
-| PAP-24 | Sección "Instálalo en tu agente" | Landing | PAP-18, PAP-21 | done |
-| PAP-25 | Sección "Crea tus credenciales" | Landing | PAP-06, PAP-14, PAP-21 | done |
-| PAP-26 | Mobile first: landing + experiencia PWA | Landing | PAP-22 | done |
-| PAP-27 | Marquee infinito de compatibilidad | Landing | PAP-22 | done |
-| PAP-28 | Rendimiento y accesibilidad de animaciones | Landing | PAP-22…27 | done |
+| PAP-18 | Claude Code plugin + `docs/AGENTS.md` | Skills | PAP-16, PAP-17 | done |
+| PAP-19 | Docs: secrets architecture and threat model | Docs | PAP-07 | done |
+| PAP-20 | Research: automatic policies without Face ID | Secrets | PAP-07 | done |
+| PAP-21 | Hermes Agent reference + landing storyboard | Landing | — | done |
+| PAP-22 | Narrative landing with scroll animations | Landing | PAP-21 | done |
+| PAP-23 | Animated "How it works" diagram | Landing | PAP-21 | done |
+| PAP-24 | "Install it in your agent" section | Landing | PAP-18, PAP-21 | done |
+| PAP-25 | "Create your credentials" section | Landing | PAP-06, PAP-14, PAP-21 | done |
+| PAP-26 | Mobile first: landing + PWA experience | Landing | PAP-22 | done |
+| PAP-27 | Infinite compatibility marquee | Landing | PAP-22 | done |
+| PAP-28 | Animation performance and accessibility | Landing | PAP-22…27 | done |
+| PAP-29 | Full test pass | QA | — | done |
+| PAP-30 | Nonce race in back-to-back phone transactions | QA | — | done |
+| PAP-31 | White-paper landing | Landing | PAP-22…28 | done |
+| PAP-32 | React Compiler lint errors | QA | — | done |
+| PAP-33 | `/api/fund` without limits: the funder can be drained | QA / Security | — | done |
+| PAP-34 | Batch size cap on `/api/rpc` | QA / Security | — | done |
+| PAP-35 | `/show` with an unknown id | UX | — | done |
+| PAP-36 | Merge the branch into `main` (broken landing links) | QA | PAP-29, PAP-30 | done |
+| PAP-37 | Broken on-chain history: the RPC limits `eth_getLogs` | QA | — | done |
+| PAP-38 | Accessibility after the redesign | Landing | PAP-31 | done |
+| PAP-39 | English-only repository | Docs | — | done |
+| PAP-40 | Final delivery polish | Docs / QA | PAP-39 | done |
 
-**Orden sugerido:** PAP-01 → PAP-03 → PAP-15 → PAP-02 → PAP-05 / PAP-06 → PAP-04 → PAP-07 → PAP-16 → PAP-08 → PAP-09 → PAP-10 / PAP-11 → PAP-12 → PAP-13 → PAP-14 → PAP-17 → PAP-18 → PAP-19 → PAP-20.
+**Suggested order (secrets, JSON-RPC, UX, skills):** PAP-01 → PAP-03 → PAP-15 → PAP-02 → PAP-05 / PAP-06 → PAP-04 → PAP-07 → PAP-16 → PAP-08 → PAP-09 → PAP-10 / PAP-11 → PAP-12 → PAP-13 → PAP-14 → PAP-17 → PAP-18 → PAP-19 → PAP-20.
 
-**Landing (en paralelo, otra persona):** PAP-21 → PAP-22 / PAP-23 → PAP-26 → PAP-27 → PAP-24 / PAP-25 (cuando existan plugin y CLI) → PAP-28.
-
----
-
-## Épica: Secretos con doble firma
-
-### PAP-01 — Librería de cifrado por capas (ECIES)
-
-- **Estado:** done
-- **Épica:** Secretos
-- **Depende de:** —
-
-**Descripción**
-Módulo compartido (Node + navegador) con `seal(plaintext, phonePubKey, agentPubKey)`, `peelPhone(blob, phonePrivKey) → innerForAgent` y `openAgent(blob, agentPrivKey) → plaintext`. Usa ECIES secp256k1 (`eciesjs` o `@noble/curves` + AES-256-GCM + HKDF). Incluye cómo obtener la llave pública a partir de una firma (`recoverPublicKey` de viem), porque hoy el relay solo conoce direcciones.
-
-**Casos de uso**
-- El humano sella una API key para su agente desde la laptop.
-- El teléfono quita su capa y re-cifra para el agente.
-- El agente abre el sobre final.
-
-**Criterios de aceptación**
-- Mismo código funciona en `mcp/` (Node) y en `web/` (navegador).
-- Sin la llave del teléfono no se puede quitar la capa interna; sin la del agente no se abre la externa.
-- Formato de blob versionado (`v: 1`) y documentado.
-- Llave pública recuperable a partir de una firma del agente y del teléfono.
-
-**Pruebas**
-- Unit: round-trip seal → peel → open.
-- Unit: llave incorrecta en cada capa → error.
-- Unit: blob alterado (1 byte) → error de autenticación GCM.
-- Unit: `recoverPublicKey` coincide con `privateKeyToAccount(pk).publicKey`.
-
-**Resumen post-desarrollo**
-- `mcp/src/pap-core.ts` (fuente de verdad) copiado a `web/src/lib/pap-core.ts` con `node scripts/sync-core.mjs`; el CI falla si se desincronizan.
-- ECIES: ECDH secp256k1 (`@noble/curves`) → HKDF-SHA256 → AES-256-GCM, todo con WebCrypto, así que corre igual en Node y en el navegador. Blob versionado `{v:1, alg, epk, iv, ct}`.
-- **Cambio frente al plan:** la capa externa es la del teléfono y la interna la del agente. Así el teléfono solo quita su capa y **nunca ve el texto plano** (antes el plan era "quitar y re-cifrar").
-- Agente y nombre del secreto van ligados como *additional data* de AES-GCM en las dos capas: un blob no se abre como si fuera de otro agente u otro nombre, aunque los blobs del relay sean públicos.
-- Llaves públicas: `recoverPublicKey` a partir de firmas personal_sign o EIP-712 (el relay las guarda al emparejar).
-- 10 tests en `mcp/test/core.test.ts` (`npm test`): round-trip, el agente solo no abre, el teléfono solo no lee, cambio de agente/nombre, un byte alterado, llaves comprimidas y sin comprimir, recuperación de llaves.
+**Landing (in parallel, another person):** PAP-21 → PAP-22 / PAP-23 → PAP-26 → PAP-27 → PAP-24 / PAP-25 (once the plugin and CLI exist) → PAP-28.
 
 ---
 
-### PAP-02 — Relay: almacenamiento de secretos + request `reveal`
+## Epic: Dual-signature secrets
 
-- **Estado:** done
-- **Épica:** Secretos
-- **Depende de:** PAP-01, PAP-03
+### PAP-01 — Layered encryption library (ECIES)
 
-**Descripción**
-Nuevos tipos en `web/src/lib/types.ts`: `SecretRecord {name, agentAddress, ownerAddress, blob, createdAt, revokedAt?}` y `RevealAction {type: "reveal", name, reason}`. `RequestState.action` pasa a `TransferAction | RevealAction` y agrega `result?` (blob re-cifrado para el agente). Endpoints:
-- `POST /api/secrets` — guarda el ciphertext, firmado por el dueño.
-- `GET /api/secrets?agent=` — lista metadatos, sin blobs.
-- `DELETE /api/secrets/:name` — revoca, firmado por el dueño.
-- `POST /api/requests` con `action.type = "reveal"`, firmado por el agente (EIP-712).
-- `POST /api/requests/:id/resolve` acepta `result` para reveals.
+- **Status:** done
+- **Epic:** Secrets
+- **Depends on:** —
 
-**Casos de uso**
-- El humano sube un secreto sellado.
-- El agente pide un secreto y hace polling hasta tener el blob.
-- El humano revoca un secreto.
+**Description**
+Shared module (Node + browser) with `seal(plaintext, phonePubKey, agentPubKey)`, `peelPhone(blob, phonePrivKey) → innerForAgent` and `openAgent(blob, agentPrivKey) → plaintext`. Uses ECIES secp256k1 (`eciesjs` or `@noble/curves` + AES-256-GCM + HKDF). Includes how to get a public key from a signature (viem's `recoverPublicKey`), because today the relay only knows addresses.
 
-**Criterios de aceptación**
-- El relay nunca recibe ni guarda texto plano.
-- Solo el dueño del agente puede crear o revocar secretos de ese agente.
-- Solo el agente emparejado puede pedir un reveal de sus secretos.
-- Nonce y expiry validados: una firma reutilizada o vencida → rechazo.
-- `GET /api/requests/:id` devuelve `result` solo cuando `status = approved`.
-- Las rutas de pagos existentes no cambian de comportamiento.
+**Use cases**
+- The human seals an API key for their agent from the laptop.
+- The phone removes its layer.
+- The agent opens the final envelope.
 
-**Pruebas**
-- Integración (script tipo `relay-test.mjs`): seal → request → resolve → poll → open.
-- Firma de un tercero → 401. Nonce repetido → 409. Expiry vencido → 400.
-- Secreto revocado → reveal rechazado.
-- Regresión: `mcp/scripts/e2e.mjs` sigue pasando.
+**Acceptance criteria**
+- The same code runs in `mcp/` (Node) and in `web/` (browser).
+- Without the phone's key the outer layer cannot be removed; without the agent's key the inner one cannot be opened.
+- Versioned (`v: 1`) and documented blob format.
+- Public key recoverable from a signature by the agent and by the phone.
 
-**Resumen post-desarrollo**
-- Rutas nuevas: `POST/GET /api/secrets`, `GET/DELETE /api/secrets/:agent/:name`, `POST /api/agents/:address/keys` (publica llaves públicas de agentes emparejados antes de esta versión). `POST /api/requests` acepta `type: "reveal"` y `resolve` acepta `result` + `approvalSig`.
-- **Sellado en dos caminos:** si lo firma la llave del agente (CLI en la laptop) queda pendiente y se crea un request `seal` para el teléfono, que hace el `grant` on-chain y lo activa; si lo firma el dueño (vault web) queda activo de una.
-- El relay guarda las llaves públicas del agente y del dueño al emparejar (recuperadas de las firmas) para que el sellador pueda cifrar.
-- Validaciones: nombre, `reason` de 10–280 caracteres, expiración ≤ 15 min en solicitudes, nonce de un solo uso por firmante, límite de lecturas y expiración del secreto, hash del blob firmado en seal y en approval.
-- `store.ts` usa un mapa en memoria si no hay `BLOB_READ_WRITE_TOKEN` fuera de producción: permite probar el relay sin red.
-- Pruebas: `mcp/scripts/secrets-relay-test.ts` contra `next dev`, **27 checks** (flujo completo + replay de nonce, firmas de terceros, blob cambiado, revocación, regresión de transferencias). `web/scripts/relay-test.mjs` sigue pasando.
-- Deuda: las escrituras en Vercel Blob no son atómicas; dos solicitudes simultáneas con el mismo nonce podrían pasar (aceptable en testnet).
+**Tests**
+- Unit: seal → peel → open round trip.
+- Unit: wrong key at each layer → error.
+- Unit: tampered blob (1 byte) → GCM authentication error.
+- Unit: `recoverPublicKey` matches `privateKeyToAccount(pk).publicKey`.
+
+**Post-development summary**
+- `mcp/src/pap-core.ts` (source of truth) is copied to `web/src/lib/pap-core.ts` with `node scripts/sync-core.mjs`; CI fails if they drift.
+- ECIES: secp256k1 ECDH (`@noble/curves`) → HKDF-SHA256 → AES-256-GCM, all with WebCrypto, so it runs the same in Node and the browser. Versioned blob `{v:1, alg, epk, iv, ct}`.
+- **Change from the plan:** the outer layer is the phone's and the inner one the agent's. The phone only removes its layer and **never sees the plaintext** (the plan was "remove and re-encrypt").
+- The agent and the secret name are bound as AES-GCM *additional data* in both layers: a blob cannot be opened as if it belonged to another agent or name, even though the relay's blobs are public.
+- Public keys: `recoverPublicKey` from personal_sign or EIP-712 signatures (the relay stores them at pairing).
+- 10 tests in `mcp/test/core.test.ts` (`npm test`): round trip, the agent alone cannot open, the phone alone cannot read, agent/name swap, one tampered byte, compressed and uncompressed keys, key recovery.
 
 ---
 
-### PAP-03 — Tipos EIP-712 para solicitud y aprobación
+### PAP-02 — Relay: secret storage + `reveal` request
 
-- **Estado:** done
-- **Épica:** Secretos
-- **Depende de:** —
+- **Status:** done
+- **Epic:** Secrets
+- **Depends on:** PAP-01, PAP-03
 
-**Descripción**
-Definir domain `{name: "PAP", version: "1", chainId: 133, verifyingContract: AgentPassport}` y tipos `RevealRequest {agent, name, reason, nonce, expiry}` y `RevealApproval {requestId, agent, name, resultHash, expiry}`. Módulo compartido entre `mcp/` y `web/`.
+**Description**
+New types in `web/src/lib/types.ts`: `SecretRecord {name, agentAddress, ownerAddress, blob, createdAt, revokedAt?}` and `RevealAction {type: "reveal", name, reason}`. `RequestState.action` becomes `TransferAction | RevealAction` and gains `result?` (the blob for the agent). Endpoints:
+- `POST /api/secrets` — stores the ciphertext, signed by the owner.
+- `GET /api/secrets?agent=` — lists metadata, no blobs.
+- `DELETE /api/secrets/:name` — revokes, signed by the owner.
+- `POST /api/requests` with `action.type = "reveal"`, signed by the agent (EIP-712).
+- `POST /api/requests/:id/resolve` accepts `result` for reveals.
 
-**Casos de uso**
-- El agente firma lo que pide; el teléfono muestra exactamente lo firmado.
-- Un tercero verifica a posteriori quién pidió y quién aprobó.
+**Use cases**
+- The human uploads a sealed secret.
+- The agent asks for a secret and polls until it has the blob.
+- The human revokes a secret.
 
-**Criterios de aceptación**
-- Tipos idénticos en MCP, relay y PWA (una sola fuente).
-- La aprobación liga el hash del resultado: no se puede cambiar el blob sin invalidar la firma.
-- Verificable con `verifyTypedData` de viem.
+**Acceptance criteria**
+- The relay never receives or stores plaintext.
+- Only the agent's owner can create or revoke that agent's secrets.
+- Only the paired agent can ask to reveal its secrets.
+- Nonce and expiry validated: a reused or expired signature → rejected.
+- `GET /api/requests/:id` returns `result` only when `status = approved`.
+- The existing payment routes do not change behavior.
 
-**Pruebas**
-- Unit: firmar y verificar ambos tipos.
-- Unit: cambiar `reason`, `name` o `resultHash` invalida la firma.
+**Tests**
+- Integration (`relay-test.mjs`-style script): seal → request → resolve → poll → open.
+- Third-party signature → 401. Repeated nonce → 409. Expired → 400.
+- Revoked secret → reveal rejected.
+- Regression: `mcp/scripts/e2e.mjs` still passes.
 
-**Resumen post-desarrollo**
-- En `pap-core.ts`: dominio `{name:"PAP", version:"1", chainId:133, verifyingContract: AgentPassport}` y tipos `RevealRequest`, `RevealApproval` (liga `resultHash` = hash del blob entregado) y `SealRequest` (nuevo: el sellador firma el hash del blob, el máximo de lecturas y la expiración).
-- `typedData()`, `publicKeyFromTypedSig()` y `wire()` (bigint → string para el JSON del relay).
-- Tests: firmar y recuperar; cambiar `reason`, `name`, `nonce` o `resultHash` invalida la firma.
-
----
-
-### PAP-04 — Teléfono: tarjeta de aprobación de secretos
-
-- **Estado:** done
-- **Épica:** Secretos / UX
-- **Depende de:** PAP-02, PAP-15
-
-**Descripción**
-Extender `web/src/app/approve/[id]/page.tsx` para `type: "reveal"`. La tarjeta muestra agente, nombre del secreto (🔑), el **reason** tal cual y los últimos accesos. Al aprobar: verifica la firma EIP-712 del agente → Face ID → `peelPhone` → re-cifra para el agente → firma `RevealApproval` → `resolve` con `result`.
-
-**Casos de uso**
-- El humano aprueba una lectura con Face ID.
-- El humano rechaza porque el reason no tiene sentido (posible prompt injection).
-
-**Criterios de aceptación**
-- Mismo diseño que la tarjeta de pagos, con distinto ícono.
-- Si la firma del agente no verifica → la tarjeta muestra error y no permite aprobar.
-- El texto plano existe solo en memoria del teléfono durante la re-cifra; no se muestra ni se persiste.
-- El rechazo resuelve el request como `rejected`.
-
-**Pruebas**
-- Manual en iPhone (Safari PWA): aprobar y rechazar.
-- `phone-sim.mjs` extendido para reveals (plan B y CI).
-- Firma de agente alterada → no se puede aprobar.
-
-**Resumen post-desarrollo**
-- `/approve/[id]` maneja tres tipos: 💸 pago, 🔑 lectura (muestra el **reason** en un recuadro destacado, lecturas usadas y última lectura) y 🔒 sellado (máximo de lecturas, expiración, `grant`).
-- Al aprobar un reveal: Face ID → quita la capa del teléfono → `record()` on-chain (el contrato cuenta la lectura) → firma `RevealApproval` → resuelve con el blob interno. El teléfono nunca ve el texto plano.
-- Si el secreto está revocado, vencido o agotado (se lee `getGrant` on-chain), el botón de aprobar se desactiva y se explica por qué.
-- `lib/actions.ts` resume cualquier acción en una línea; lo usan la lista de pendientes, el historial y la pantalla del QR.
-- `phone-sim.mjs` aprueba seals y reveals (`PAP_SIM_NO_CHAIN=1` para correr sin cadena).
-- **Pendiente:** prueba manual en iPhone (la red de esta sesión no llega a HSK ni a producción).
+**Post-development summary**
+- New routes: `POST/GET /api/secrets`, `GET/DELETE /api/secrets/:agent/:name`, `POST /api/agents/:address/keys` (publishes public keys for agents paired before this version). `POST /api/requests` accepts `type: "reveal"` and `resolve` accepts `result` + `approvalSig`.
+- **Two sealing paths:** if it is signed by the agent's key (CLI on the laptop) it stays pending and a `seal` request goes to the phone, which does the on-chain `grant` and activates it; if it is signed by the owner (web vault) it is active right away.
+- The relay stores the agent's and the owner's public keys at pairing (recovered from the signatures) so the sealer can encrypt.
+- Validation: name, `reason` of 10–280 characters, request expiry ≤ 15 min, single-use nonce per signer, the secret's read limit and expiry, blob hash signed in both seal and approval.
+- `store.ts` uses an in-memory map when there is no `BLOB_READ_WRITE_TOKEN` outside production, so the relay can be tested offline.
+- Tests: `mcp/scripts/secrets-relay-test.ts` against `next dev`, **27 checks** (full flow + nonce replay, third-party signatures, swapped blob, revocation, transfer regression). `web/scripts/relay-test.mjs` still passes.
+- Debt: Vercel Blob writes are not atomic; two simultaneous requests with the same nonce could both pass (acceptable on testnet).
 
 ---
 
-### PAP-05 — MCP: tool `pap_secret`
+### PAP-03 — EIP-712 types for request and approval
 
-- **Estado:** done
-- **Épica:** Secretos
-- **Depende de:** PAP-02
+- **Status:** done
+- **Epic:** Secrets
+- **Depends on:** —
 
-**Descripción**
-Nueva tool en `mcp/src/index.ts`: `pap_secret({name, reason})`. Firma EIP-712, crea el request, muestra QR o link, espera hasta 5 min, abre el blob con la identity key. Devuelve el secreto al agente **sin imprimirlo en logs**. Agregar `pap_secrets_list()` para metadatos. Rebuild del bundle `mcp/dist/pap.mjs`.
+**Description**
+Define the domain `{name: "PAP", version: "1", chainId: 133, verifyingContract: AgentPassport}` and the types `RevealRequest {agent, name, reason, nonce, expiry}` and `RevealApproval {requestId, agent, name, resultHash, expiry}`. Module shared between `mcp/` and `web/`.
 
-**Casos de uso**
-- Claude Code necesita la key de OpenAI para correr tests.
-- El agente lista qué secretos tiene disponibles.
+**Use cases**
+- The agent signs what it asks for; the phone shows exactly what was signed.
+- A third party can later verify who asked and who approved.
 
-**Criterios de aceptación**
-- `reason` obligatorio (mínimo 10 caracteres).
-- En rechazo devuelve error claro (`User rejected`, código 4001) y no reintenta.
-- La descripción de la tool incluye las reglas de uso (no imprimir, no commitear).
-- El bundle se construye y funciona sin `node_modules`.
+**Acceptance criteria**
+- Identical types in the MCP, the relay and the PWA (single source).
+- The approval binds the hash of the result: the blob cannot be changed without invalidating the signature.
+- Verifiable with viem's `verifyTypedData`.
 
-**Pruebas**
-- `mcp/scripts/e2e.mjs` extendido: seal → `pap_secret` → phone-sim aprueba → valor correcto.
-- Rechazo → error 4001.
-- Timeout → error de expiración.
+**Tests**
+- Unit: sign and verify both types.
+- Unit: changing `reason`, `name` or `resultHash` invalidates the signature.
 
-**Resumen post-desarrollo**
-- Tools nuevas en `mcp/src/index.ts`: `pap_secret({name, reason, deliver?})` y `pap_secrets_list()`; `pap_wait` acepta `kind: "secret"`. Lógica compartida con la CLI en `mcp/src/secrets.ts`.
-- **Mejora frente al plan:** por defecto (`deliver: "file"`) el valor se escribe en `~/.pap/secrets/<name>` (0600) y la tool devuelve solo la ruta: **el secreto no entra en la conversación del modelo**, lo que reduce filtraciones por prompt injection o transcripts. `deliver: "inline"` existe como opción explícita.
-- La descripción de la tool incluye las tres reglas de oro y dice que nunca se le pida al humano pegar un secreto en el chat.
-- No hay tool para sellar desde el MCP a propósito: sellar exige que el humano escriba el valor, y eso se hace en su terminal (`pap seal`).
-- Rechazo → mensaje "Do not retry"; `reason` < 10 caracteres se rechaza antes de llegar al teléfono.
-- Prueba: `mcp/scripts/secrets-e2e.mjs` con los bundles reales + teléfono simulado, **11 checks**.
+**Post-development summary**
+- In `pap-core.ts`: domain `{name:"PAP", version:"1", chainId:133, verifyingContract: AgentPassport}` and the types `RevealRequest`, `RevealApproval` (binds `resultHash` = hash of the released blob) and `SealRequest` (new: the sealer signs the blob hash, the maximum reads and the expiry).
+- `typedData()`, `publicKeyFromTypedSig()` and `wire()` (bigint → string for the relay's JSON).
+- Tests: sign and recover; changing `reason`, `name`, `nonce` or `resultHash` invalidates the signature.
 
 ---
 
-### PAP-06 — CLI: `pap seal` y `pap secret get`
+### PAP-04 — Phone: secret approval card
 
-- **Estado:** done
-- **Épica:** Secretos
-- **Depende de:** PAP-02
+- **Status:** done
+- **Epic:** Secrets / UX
+- **Depends on:** PAP-02, PAP-15
 
-**Descripción**
-Binario `pap` en `mcp/` (`bin` en `package.json`, mismo bundle). `pap seal <name> [--agent <addr|nombre>] [--expiry 7d]` lee el secreto de stdin o prompt oculto, cifra y sube. `pap secret get <name> --reason "..."` para agentes sin MCP: imprime a stdout solo con `--stdout`, o ejecuta `pap secret exec <name> -- cmd` inyectando una variable de entorno.
+**Description**
+Extend `web/src/app/approve/[id]/page.tsx` for `type: "reveal"`. The card shows the agent, the secret name, the **reason** verbatim and the latest reads. On approval: verify the agent's EIP-712 signature → Face ID → `peelPhone` → sign `RevealApproval` → `resolve` with `result`.
 
-**Casos de uso**
-- El humano sella una key desde la terminal sin pegarla en ningún chat.
-- Un bot en Python obtiene la key con `pap secret exec openai -- python bot.py`.
+**Use cases**
+- The human approves a read with Face ID.
+- The human rejects it because the reason makes no sense (possible prompt injection).
 
-**Criterios de aceptación**
-- El secreto nunca aparece en el historial del shell (stdin o prompt oculto).
-- `exec` inyecta `PAP_SECRET_<NAME>` solo en el proceso hijo.
-- Códigos de salida: 0 ok, 4 rechazado, 5 expirado.
+**Acceptance criteria**
+- Same design as the payment card, with a different label.
+- If the agent's signature does not verify → the card shows an error and cannot be approved.
+- The plaintext never exists on the phone; nothing is shown or persisted.
+- Rejection resolves the request as `rejected`.
 
-**Pruebas**
-- Script: `echo key | pap seal test` → `pap secret exec test -- printenv PAP_SECRET_TEST` con phone-sim.
-- Rechazo → código 4.
+**Tests**
+- Manual on iPhone (Safari PWA): approve and reject.
+- `phone-sim.mjs` extended for reveals (plan B and CI).
+- Tampered agent signature → cannot be approved.
 
-**Resumen post-desarrollo**
-- `mcp/src/cli.ts` → bundle `mcp/dist/pap-cli.mjs` (commiteado, sin `node_modules`), `bin` en `package.json` (`pap`, `pap-mcp`). Uso sin instalar: `node mcp/dist/pap-cli.mjs …`.
-- Comandos: `pap status`, `pap seal <name> [--max-reads] [--days]` (valor por stdin o prompt oculto, nunca en el historial), `pap secret list`, `pap secret get <name> --reason … [--stdout]`, `pap secret exec <name> --reason … -- <cmd>` (inyecta `PAP_SECRET_<NAME>` solo en el proceso hijo).
-- Códigos de salida: 0 ok · 1 error · 4 rechazado · 5 expirado/timeout.
-- CI verifica que el bundle de la CLI coincide con el código fuente.
-- Probado en `secrets-e2e.mjs`: seal por stdin, exec con variable de entorno, rechazo con código 4, límite de lecturas.
-- Pendiente: publicar en npm para que `npx pap` funcione (hoy se usa la ruta del repo).
-
----
-
-### PAP-07 — Visa y auditoría on-chain para secretos
-
-- **Estado:** done
-- **Épica:** Secretos
-- **Depende de:** PAP-04
-
-**Descripción**
-Sin cambiar contratos. Al sellar, el teléfono hace `grant(agentId, keccak256("secret:" + name), maxAccesos, expiry)`. En cada aprobación, `record(agentId, scope, 1, ref = keccak("pap:reveal:" + requestId))`. El relay y la PWA consultan `canAct` antes de mostrar la tarjeta. Revocar = `revoke(agentId, scope)` + `DELETE /api/secrets/:name`.
-
-**Casos de uso**
-- "Esta key se puede leer máximo 10 veces en 7 días."
-- Un auditor ve en HSK cuántas veces y cuándo se leyó cada secreto.
-
-**Criterios de aceptación**
-- Sin visa activa → la PWA no permite aprobar.
-- Pasado el máximo → `LimitExceeded()` on-chain y la tarjeta lo explica.
-- Los accesos aparecen en **Sellos** junto a los pagos.
-
-**Pruebas**
-- Foundry: test con scope de secreto (grant → record × N → revert).
-- E2E: N+1 reveals → el último falla con `LimitExceeded`.
-
-**Resumen post-desarrollo**
-- Sin cambios en contratos. Al aprobar un seal el teléfono hace `grant(agentId, keccak256("secret:"+name), maxLecturas, expiry)`; cada reveal aprobado hace `record(agentId, scope, 1, keccak256("pap:reveal:"+requestId))` **antes** de entregar el blob, así que si el contrato revierte (`LimitExceeded`, `GrantExpired`, `NoGrant`) no se entrega nada.
-- La PWA lee `getGrant` y desactiva la aprobación si la visa no permite otra lectura; el relay también cuenta lecturas (defensa en profundidad).
-- Revocar desde la Bóveda = `revoke()` on-chain + `DELETE` en el relay.
-- Las lecturas aparecen en **Sellos** (eventos `ActionRecorded` filtrados por los scopes de los secretos).
-- Tests Foundry nuevos en `contracts/test/SecretVisa.t.sol` (límite, expiración, revocación, scopes independientes, permisos): pasan en el CI.
-- Nota: la llave del agente también puede llamar `record()` sobre su propio scope y gastar lecturas; solo se perjudica a sí misma, no obtiene el secreto.
+**Post-development summary**
+- `/approve/[id]` handles three types: payment, secret read (shows the **reason** in a highlighted box, reads used and last read) and seal (maximum reads, expiry, `grant`).
+- Approving a reveal: Face ID → remove the phone's layer → on-chain `record()` (the contract counts the read) → sign `RevealApproval` → resolve with the inner blob. The phone never sees the plaintext.
+- If the secret is revoked, expired or used up (on-chain `getGrant`), the approve button is disabled with an explanation.
+- `lib/actions.ts` summarizes any action in one line; the pending list, the history and the QR screen use it.
+- `phone-sim.mjs` approves seals and reveals (`PAP_SIM_NO_CHAIN=1` to run without the chain).
+- **Pending:** manual test on an iPhone.
 
 ---
 
-### PAP-20 — Investigación: políticas automáticas sin Face ID
+### PAP-05 — MCP: `pap_secret` tool
 
-- **Estado:** done
-- **Épica:** Secretos
-- **Depende de:** PAP-07
+- **Status:** done
+- **Epic:** Secrets
+- **Depends on:** PAP-02
 
-**Descripción**
-Explorar cómo permitir "leer sin preguntar dentro de la visa" sin romper la doble firma: cifrado por umbral (Lit Protocol u otra red), un TEE, o un teléfono que responde solo si la visa está activa. Entregable: documento con opciones, trade-offs y recomendación.
+**Description**
+New tool in `mcp/src/index.ts`: `pap_secret({name, reason})`. Signs EIP-712, creates the request, shows a QR or link, waits up to 5 min, opens the blob with the identity key. Returns the secret to the agent **without printing it in logs**. Add `pap_secrets_list()` for metadata. Rebuild the `mcp/dist/pap.mjs` bundle.
 
-**Casos de uso**
-- Un agente autónomo que necesita una key cada hora sin despertar al humano.
+**Use cases**
+- Claude Code needs the OpenAI key to run tests.
+- The agent lists which secrets it can ask for.
 
-**Criterios de aceptación**
-- Documento en `docs/` con al menos 2 opciones evaluadas y una recomendación.
+**Acceptance criteria**
+- `reason` required (at least 10 characters).
+- On rejection it returns a clear error (`User rejected`, code 4001) and does not retry.
+- The tool description includes the usage rules (do not print, do not commit).
+- The bundle builds and works without `node_modules`.
 
-**Pruebas**
-- N/A (investigación). Si hay prototipo, un script que lo demuestre.
+**Tests**
+- `mcp/scripts/e2e.mjs` extended: seal → `pap_secret` → phone-sim approves → correct value.
+- Rejection → 4001 error.
+- Timeout → expiry error.
 
-**Resumen post-desarrollo**
-- Documento `docs/AUTONOMOUS_SECRETS.md` con 5 opciones evaluadas: desbloquear una vez (descartada: equivale a entregar la key), teléfono que responde solo (descartada: iOS no ejecuta PWAs en segundo plano), **custodio en TEE** que llama `record()` antes de entregar, red de descifrado por umbral con condición `canAct`, y proxy de credenciales (la key nunca sale).
-- **Recomendación:** custodio en TEE como opción por secreto ("autónomo hasta <fecha>"), en paralelo proxy de credenciales para APIs HTTP; red por umbral más adelante, cuando soporte condiciones en HashKey Chain.
-- Hallazgo: `canAct` es una *view*; en cualquier opción alguien tiene que llamar `record()` para que las lecturas se **gasten** y no solo se verifiquen.
-- Sin prototipo: cada opción requiere infraestructura fuera del repo (enclave o red externa).
-
----
-
-## Épica: JSON-RPC
-
-### PAP-08 — JSON-RPC 2.0: endpoint `/api/rpc` con namespace `pap_*`
-
-- **Estado:** done
-- **Épica:** JSON-RPC
-- **Depende de:** PAP-02
-
-**Descripción**
-`POST /api/rpc` que acepta llamadas sueltas y en batch. Métodos: `pap_sealSecret`, `pap_requestSecret`, `pap_requestTransfer`, `pap_getRequest`, `pap_canAct`, `pap_listSecrets`. Envuelve la lógica de las rutas REST (no la duplica). Errores: `4001` rechazado por el usuario, `-32602` params inválidos, `-32003` visa expirada o sin límite, `-32601` método inexistente.
-
-**Casos de uso**
-- Un agente A2A en Go o Rust integra PAP sin MCP.
-- Un cliente manda varias consultas en un batch.
-
-**Criterios de aceptación**
-- Cumple JSON-RPC 2.0 (id, batch, notificaciones sin id).
-- Los mismos permisos y firmas que REST.
-- Especificación de métodos en `docs/RPC.md`.
-
-**Pruebas**
-- Script con `curl`: cada método, batch mixto, método inexistente, params inválidos.
-- Paridad: el mismo flujo por REST y por RPC da el mismo resultado.
-
-**Resumen post-desarrollo**
-- `web/src/app/api/rpc/route.ts`: JSON-RPC 2.0 con llamadas sueltas, batch y notificaciones. Cada método **llama al handler REST existente** (no duplica lógica), así que firmas y validaciones son idénticas.
-- Métodos: `pap_requestTransfer`, `pap_requestSecret`, `pap_sealSecret`, `pap_getRequest`, `pap_listSecrets`, `pap_getAgent`, `pap_canAct`, `pap_chainId`, `pap_contracts`, `rpc.discover` (también `GET /api/rpc`).
-- Errores JSON-RPC estándar + códigos EIP-1474 mapeados desde el status REST (`-32000` firma/nonce, `-32001` no encontrado, `-32002` no emparejado, `-32003` expirado, `-32005` límite), con `error.data.httpStatus`.
-- **Cambio frente al plan:** `4001` queda para el signer local (EIP-1193); en el relay un rechazo es un request con `status: "rejected"`, no un error.
-- Especificación: `docs/RPC.md`. Prueba: `mcp/scripts/rpc-test.ts`, **18 checks** (conformidad JSON-RPC + flujo de secretos por RPC).
+**Post-development summary**
+- New tools in `mcp/src/index.ts`: `pap_secret({name, reason, deliver?})` and `pap_secrets_list()`; `pap_wait` accepts `kind: "secret"`. Logic shared with the CLI in `mcp/src/secrets.ts`.
+- **Improvement over the plan:** by default (`deliver: "file"`) the value is written to `~/.pap/secrets/<name>` (0600) and the tool returns only the path: **the secret never enters the model's conversation**, which reduces leaks through prompt injection or transcripts. `deliver: "inline"` exists as an explicit option.
+- The tool description includes the three golden rules and says never to ask the human to paste a secret into the chat.
+- There is deliberately no tool to seal from the MCP: sealing requires the human to type the value, and that happens in their terminal (`pap seal`).
+- Rejection → "Do not retry" message; a `reason` under 10 characters is refused before it reaches the phone.
+- Test: `mcp/scripts/secrets-e2e.mjs` with the real bundles + simulated phone, **11 checks**.
 
 ---
 
-### PAP-09 — Signer local EIP-1193 (`pap rpc`)
+### PAP-06 — CLI: `pap seal` and `pap secret get`
 
-- **Estado:** done
-- **Épica:** JSON-RPC
-- **Depende de:** PAP-08
+- **Status:** done
+- **Epic:** Secrets
+- **Depends on:** PAP-02
 
-**Descripción**
-`pap rpc --port 8545` levanta un servidor JSON-RPC local compatible con Ethereum. Lecturas (`eth_call`, `eth_getBalance`, `eth_chainId`, `eth_blockNumber`, …) pasan al RPC de HSK. `eth_accounts` / `eth_requestAccounts` devuelven la dirección del agente. `eth_sendTransaction` → si la visa cubre la tx, el agente firma solo; si no, request al teléfono (QR/push). Solo escucha en `127.0.0.1`.
+**Description**
+A `pap` binary in `mcp/` (`bin` in `package.json`, same bundle). `pap seal <name> [--agent <addr|name>] [--expiry 7d]` reads the secret from stdin or a hidden prompt, encrypts and uploads it. `pap secret get <name> --reason "..."` for agents without MCP: prints to stdout only with `--stdout`, or runs `pap secret exec <name> -- cmd` injecting an environment variable.
 
-**Casos de uso**
-- `cast send --rpc-url http://localhost:8545 ...` sin private key en `.env`.
-- Un script viem, ethers o web3.py usa PAP sin saber que existe.
+**Use cases**
+- The human seals a key from the terminal without pasting it into any chat.
+- A Python bot gets the key with `pap secret exec openai -- python bot.py`.
 
-**Criterios de aceptación**
-- Funciona con `cast`, viem y ethers sin modificarlos.
-- Una tx fuera de la visa nunca se firma sin aprobación del teléfono.
-- Rechazo → error `4001` (EIP-1193).
+**Acceptance criteria**
+- The secret never shows up in the shell history (stdin or hidden prompt).
+- `exec` injects `PAP_SECRET_<NAME>` only into the child process.
+- Exit codes: 0 ok, 4 rejected, 5 expired.
 
-**Pruebas**
-- `cast chain-id`, `cast balance`, `cast send` contra el proxy.
-- Script viem: `walletClient.sendTransaction` → phone-sim aprueba → tx hash.
-- Tx por encima del límite → aprobación requerida o revert on-chain.
+**Tests**
+- Script: `echo key | pap seal test` → `pap secret exec test -- printenv PAP_SECRET_TEST` with phone-sim.
+- Rejection → code 4.
 
-**Resumen post-desarrollo**
-- `mcp/src/rpc-server.ts` + `pap rpc [--port 8545]` en la CLI; escucha solo en `127.0.0.1`.
-- Lecturas reenviadas a HSK. `eth_accounts` = el agente. `eth_sendTransaction` de un ERC-20 `transfer(to, amount)` se convierte en pago PAP desde la billetera del humano: el agente paga solo vía `AgentPassport.pay` si la visa lo cubre y tiene gas; si no, aprueba el teléfono. Llamadas a `AgentPassport` las firma el agente y las valida el contrato. **Cualquier otra transacción se rechaza con 4200 y nunca se firma.**
-- Hallazgo: herramientas como `cast send` estiman gas antes de enviar, y en HSK eso revertiría porque el agente no tiene tokens; `eth_estimateGas` se responde localmente para las transferencias que PAP gestiona.
-- Errores EIP-1193: 4001 rechazado, 4100 otra cuenta, 4200 no soportado, 4900 expirado.
-- Prueba: `mcp/scripts/rpc-signer-test.mjs` con viem real, un nodo HSK falso (verifica qué se reenvía) y teléfono simulado: **20 checks**.
-- **Pendiente:** probar `cast`, ethers y web3.py reales contra HSK (esta sesión no tiene Foundry ni red a HSK); viem cubre el mismo protocolo.
-
----
-
-### PAP-10 — `eth_getEncryptionPublicKey` / `eth_decrypt` sobre doble firma
-
-- **Estado:** done
-- **Épica:** JSON-RPC
-- **Depende de:** PAP-09
-
-**Descripción**
-En el signer local: `eth_getEncryptionPublicKey(agent)` devuelve la llave pública del agente; `eth_decrypt(blob, agent)` dispara el flujo `reveal` (doble firma) y devuelve el texto plano. Reutiliza los nombres que tuvo MetaMask (deprecados allí) con nuestro formato por capas. Documentar la diferencia de formato.
-
-**Casos de uso**
-- Herramientas que ya conocían `eth_decrypt` pueden pedir secretos.
-
-**Criterios de aceptación**
-- `eth_decrypt` nunca devuelve texto plano sin aprobación del teléfono.
-- Blob con formato distinto al nuestro → error claro.
-
-**Pruebas**
-- Script: `eth_getEncryptionPublicKey` → sellar → `eth_decrypt` → phone-sim → valor correcto.
-
-**Resumen post-desarrollo**
-- `eth_getEncryptionPublicKey` devuelve la llave comprimida del agente; `eth_decrypt` acepta `"pap:secret:<name>"` o `{"pap":"secret","name","reason"}` (también en hex) y corre el flujo de doble firma: sin aprobación del teléfono no hay texto plano.
-- **Diferencia con MetaMask** documentada en `docs/RPC.md`: los blobs `x25519-xsalsa20-poly1305` se rechazan con un error claro (4200), porque los secretos PAP usan ECIES por capas.
-- Probado en `rpc-signer-test.mjs`.
+**Post-development summary**
+- `mcp/src/cli.ts` → bundle `mcp/dist/pap-cli.mjs` (committed, no `node_modules`), `bin` in `package.json` (`pap`, `pap-mcp`). Use without installing: `node mcp/dist/pap-cli.mjs …`.
+- Commands: `pap status`, `pap seal <name> [--max-reads] [--days]` (value from stdin or a hidden prompt, never in the history), `pap secret list`, `pap secret get <name> --reason … [--stdout]`, `pap secret exec <name> --reason … -- <cmd>` (injects `PAP_SECRET_<NAME>` only into the child process).
+- Exit codes: 0 ok · 1 error · 4 rejected · 5 expired/timeout.
+- CI checks that the CLI bundle matches the source.
+- Tested in `secrets-e2e.mjs`: seal through stdin, exec with an environment variable, rejection with code 4, read limit.
+- Pending: publish to npm so `npx pap` works (today the repo path is used).
 
 ---
 
-### PAP-11 — Métodos `wallet_*` (EIP-7715, EIP-5792, capabilities)
+### PAP-07 — On-chain visa and audit for secrets
 
-- **Estado:** done
-- **Épica:** JSON-RPC
-- **Depende de:** PAP-09
+- **Status:** done
+- **Epic:** Secrets
+- **Depends on:** PAP-04
 
-**Descripción**
-- `wallet_grantPermissions` (EIP-7715) → request al teléfono para `AgentPassport.grant()`.
-- `wallet_sendCalls` / `wallet_getCallsStatus` (EIP-5792) → varios pagos con una sola aprobación.
-- `wallet_getCapabilities` → anuncia `pap: {secrets, visas, gate}`.
+**Description**
+No contract changes. When sealing, the phone calls `grant(agentId, keccak256("secret:" + name), maxReads, expiry)`. On every approval, `record(agentId, scope, 1, ref = keccak("pap:reveal:" + requestId))`. The relay and the PWA check `canAct` before showing the card. Revoke = `revoke(agentId, scope)` + `DELETE /api/secrets/:name`.
 
-**Casos de uso**
-- Un agente pide "déjame gastar 50 demoUSDT esta semana" con un método estándar.
-- Un agente paga a 3 proveedores con un Face ID.
+**Use cases**
+- "This key can be read at most 10 times in 7 days."
+- An auditor sees on HSK Chain how many times and when each secret was read.
 
-**Criterios de aceptación**
-- El mapeo EIP-7715 → `grant` queda documentado (qué campos se soportan y cuáles no).
-- `wallet_sendCalls` ejecuta todo o nada.
+**Acceptance criteria**
+- No active visa → the PWA does not allow approving.
+- Past the maximum → `LimitExceeded()` on-chain and the card explains it.
+- Reads show up under **Stamps** next to payments.
 
-**Pruebas**
+**Tests**
+- Foundry: test with a secret scope (grant → record × N → revert).
+- E2E: N+1 reveals → the last one fails with `LimitExceeded`.
+
+**Post-development summary**
+- No contract changes. When a seal is approved the phone calls `grant(agentId, keccak256("secret:"+name), maxReads, expiry)`; every approved reveal calls `record(agentId, scope, 1, keccak256("pap:reveal:"+requestId))` **before** releasing the blob, so if the contract reverts (`LimitExceeded`, `GrantExpired`, `NoGrant`) nothing is released.
+- The PWA reads `getGrant` and disables approval if the visa does not allow another read; the relay also counts reads (defense in depth).
+- Revoking from the Vault = on-chain `revoke()` + `DELETE` on the relay.
+- Reads show up under **Stamps** (`ActionRecorded` events filtered by the secrets' scopes).
+- New Foundry tests in `contracts/test/SecretVisa.t.sol` (limit, expiry, revocation, independent scopes, permissions): they pass in CI.
+- Note: the agent's key can also call `record()` on its own scope and use up reads; it only hurts itself and does not get the secret.
+
+---
+
+### PAP-20 — Research: automatic policies without Face ID
+
+- **Status:** done
+- **Epic:** Secrets
+- **Depends on:** PAP-07
+
+**Description**
+Explore how to allow "read without asking inside the visa" without breaking the dual signature: threshold encryption (Lit Protocol or another network), a TEE, or a phone that answers by itself while the visa is active. Deliverable: a document with options, trade-offs and a recommendation.
+
+**Use cases**
+- An autonomous agent that needs a key every hour without waking up the human.
+
+**Acceptance criteria**
+- Document in `docs/` with at least 2 evaluated options and a recommendation.
+
+**Tests**
+- N/A (research). If there is a prototype, a script that demonstrates it.
+
+**Post-development summary**
+- `docs/AUTONOMOUS_SECRETS.md` with 5 evaluated options: unlock once (discarded: equivalent to handing over the key), a phone that answers by itself (discarded: iOS does not run PWAs in the background), a **TEE custodian** that calls `record()` before releasing, a threshold decryption network with a `canAct` condition, and a credential proxy (the key never leaves).
+- **Recommendation:** a TEE custodian as a per-secret option ("autonomous until <date>"), with a credential proxy for HTTP APIs in parallel; a threshold network later, once it supports conditions on HashKey Chain.
+- Finding: `canAct` is a *view*; in every option someone has to call `record()` so reads are **spent**, not just checked.
+- No prototype: every option needs infrastructure outside the repo (an enclave or an external network).
+
+---
+
+## Epic: JSON-RPC
+
+### PAP-08 — JSON-RPC 2.0: `/api/rpc` endpoint with the `pap_*` namespace
+
+- **Status:** done
+- **Epic:** JSON-RPC
+- **Depends on:** PAP-02
+
+**Description**
+`POST /api/rpc` accepting single and batch calls. Methods: `pap_sealSecret`, `pap_requestSecret`, `pap_requestTransfer`, `pap_getRequest`, `pap_canAct`, `pap_listSecrets`. Wraps the logic of the REST routes (does not duplicate it). Errors: `4001` rejected by the user, `-32602` invalid params, `-32003` visa expired or out of allowance, `-32601` method not found.
+
+**Use cases**
+- An A2A agent in Go or Rust integrates PAP without MCP.
+- A client sends several queries in one batch.
+
+**Acceptance criteria**
+- JSON-RPC 2.0 compliant (id, batch, notifications without id).
+- The same permissions and signatures as REST.
+- Method specification in `docs/RPC.md`.
+
+**Tests**
+- `curl` script: every method, mixed batch, unknown method, invalid params.
+- Parity: the same flow over REST and over RPC gives the same result.
+
+**Post-development summary**
+- `web/src/app/api/rpc/route.ts`: JSON-RPC 2.0 with single calls, batches and notifications. Every method **calls the existing REST handler** (no duplicated logic), so signatures and validation are identical.
+- Methods: `pap_requestTransfer`, `pap_requestSecret`, `pap_sealSecret`, `pap_getRequest`, `pap_listSecrets`, `pap_getAgent`, `pap_canAct`, `pap_chainId`, `pap_contracts`, `rpc.discover` (also `GET /api/rpc`).
+- Standard JSON-RPC errors + EIP-1474 codes mapped from the REST status (`-32000` signature/nonce, `-32001` not found, `-32002` not paired, `-32003` expired, `-32005` limit), with `error.data.httpStatus`.
+- **Change from the plan:** `4001` is reserved for the local signer (EIP-1193); on the relay a rejection is a request with `status: "rejected"`, not an error.
+- Specification: `docs/RPC.md`. Test: `mcp/scripts/rpc-test.ts`, **18 checks** (JSON-RPC conformance + the secrets flow over RPC).
+
+---
+
+### PAP-09 — Local EIP-1193 signer (`pap rpc`)
+
+- **Status:** done
+- **Epic:** JSON-RPC
+- **Depends on:** PAP-08
+
+**Description**
+`pap rpc --port 8545` starts a local Ethereum-compatible JSON-RPC server. Reads (`eth_call`, `eth_getBalance`, `eth_chainId`, `eth_blockNumber`, …) go to the HSK RPC. `eth_accounts` / `eth_requestAccounts` return the agent's address. `eth_sendTransaction` → if the visa covers the transaction, the agent signs by itself; otherwise, a request goes to the phone (QR/push). Listens on `127.0.0.1` only.
+
+**Use cases**
+- `cast send --rpc-url http://localhost:8545 ...` with no private key in `.env`.
+- A viem, ethers or web3.py script uses PAP without knowing it exists.
+
+**Acceptance criteria**
+- Works with `cast`, viem and ethers unmodified.
+- A transaction outside the visa is never signed without the phone's approval.
+- Rejection → error `4001` (EIP-1193).
+
+**Tests**
+- `cast chain-id`, `cast balance`, `cast send` against the proxy.
+- viem script: `walletClient.sendTransaction` → phone-sim approves → transaction hash.
+- Transaction over the limit → approval required or on-chain revert.
+
+**Post-development summary**
+- `mcp/src/rpc-server.ts` + `pap rpc [--port 8545]` in the CLI; listens on `127.0.0.1` only.
+- Reads are forwarded to HSK. `eth_accounts` = the agent. An `eth_sendTransaction` of an ERC-20 `transfer(to, amount)` becomes a PAP payment from the human's wallet: the agent pays by itself through `AgentPassport.pay` if the visa covers it and it has gas; otherwise the phone approves. Calls to `AgentPassport` are signed by the agent and validated by the contract. **Any other transaction is refused with 4200 and never signed.**
+- Finding: tools like `cast send` estimate gas before sending, and on HSK that would revert because the agent holds no tokens; `eth_estimateGas` is answered locally for the transfers PAP brokers.
+- EIP-1193 errors: 4001 rejected, 4100 other account, 4200 unsupported, 4900 expired.
+- Test: `mcp/scripts/rpc-signer-test.mjs` with real viem, a fake HSK node (checks what is forwarded) and a simulated phone: **20 checks**.
+- **Pending:** try real `cast`, ethers and web3.py against HSK; viem covers the same protocol.
+
+---
+
+### PAP-10 — `eth_getEncryptionPublicKey` / `eth_decrypt` over dual signature
+
+- **Status:** done
+- **Epic:** JSON-RPC
+- **Depends on:** PAP-09
+
+**Description**
+In the local signer: `eth_getEncryptionPublicKey(agent)` returns the agent's public key; `eth_decrypt(blob, agent)` triggers the `reveal` flow (dual signature) and returns the plaintext. Reuses the names MetaMask had (deprecated there) with our layered format. Document the format difference.
+
+**Use cases**
+- Tools that already knew `eth_decrypt` can ask for secrets.
+
+**Acceptance criteria**
+- `eth_decrypt` never returns plaintext without the phone's approval.
+- A blob in a different format → clear error.
+
+**Tests**
+- Script: `eth_getEncryptionPublicKey` → seal → `eth_decrypt` → phone-sim → correct value.
+
+**Post-development summary**
+- `eth_getEncryptionPublicKey` returns the agent's compressed key; `eth_decrypt` accepts `"pap:secret:<name>"` or `{"pap":"secret","name","reason"}` (also hex-encoded) and runs the dual-signature flow: no phone approval, no plaintext.
+- **Difference from MetaMask** documented in `docs/RPC.md`: `x25519-xsalsa20-poly1305` blobs are refused with a clear error (4200), because PAP secrets use layered ECIES.
+- Tested in `rpc-signer-test.mjs`.
+
+---
+
+### PAP-11 — `wallet_*` methods (EIP-7715, EIP-5792, capabilities)
+
+- **Status:** done
+- **Epic:** JSON-RPC
+- **Depends on:** PAP-09
+
+**Description**
+- `wallet_grantPermissions` (EIP-7715) → request to the phone for `AgentPassport.grant()`.
+- `wallet_sendCalls` / `wallet_getCallsStatus` (EIP-5792) → several payments with one approval.
+- `wallet_getCapabilities` → announces `pap: {secrets, visas, gate}`.
+
+**Use cases**
+- An agent asks "let me spend 50 demoUSDT this week" with a standard method.
+- An agent pays 3 providers with one Face ID.
+
+**Acceptance criteria**
+- The EIP-7715 → `grant` mapping is documented (which fields are supported and which are not).
+- `wallet_sendCalls` runs all or nothing.
+
+**Tests**
 - Script: `wallet_grantPermissions` → phone-sim → `canAct` true.
-- Script: `wallet_sendCalls` con 3 pagos → 3 eventos `Paid`.
+- Script: `wallet_sendCalls` with 3 payments → 3 `Paid` events.
 
-**Resumen post-desarrollo**
-- `wallet_getCapabilities` anuncia `pap: {secrets, visas, gate}` bajo `0x85`.
-- `wallet_grantPermissions` (subconjunto EIP-7715): un permiso `erc20-token-allowance`; informa si ya hay visa activa on-chain. **Cambio frente al plan:** no abre un grant automático; la visa se otorga en el teléfono, porque el agente solo puede pedir. Documentado qué campos se soportan.
-- `wallet_sendCalls` / `wallet_getCallsStatus` (EIP-5792): cada transferencia sigue las reglas de `eth_sendTransaction` en orden. **Desviación:** hoy es una aprobación por llamada, no una sola para todo el lote, y `atomicRequired: true` responde 5760 (no soportado). Un lote con un solo Face ID necesita un tipo de request `batch` en el teléfono (queda como deuda).
-- Probado en `rpc-signer-test.mjs` (lote de 2 → 2 recibos).
-
----
-
-## Épica: UX / UI
-
-### PAP-15 — Mockups de aprobación y Bóveda
-
-- **Estado:** done
-- **Épica:** UX
-- **Depende de:** —
-
-**Descripción**
-Mockups (HTML estático con el estilo actual: Cormorant + Barlow Condensed, acento vino) de: tarjeta de aprobación de secreto, tarjeta de pago (para comparar), pestaña Bóveda, estado de rechazo y de límite excedido.
-
-**Casos de uso**
-- Validar el look antes de programar PAP-04 y PAP-12.
-
-**Criterios de aceptación**
-- Aprobados por Cristóbal.
-- Mismo lenguaje visual para pagos y secretos (solo cambia el ícono 💸 / 🔑).
-
-**Pruebas**
-- Revisión visual en iPhone (ancho 390px).
-
-**Resumen post-desarrollo**
-- En lugar de mockups estáticos se construyeron las pantallas reales en el estilo actual y se capturaron a 390px con Playwright contra el relay local: `docs/img/phone/approve-reveal.png`, `wallet-agents.png`, `wallet-vault.png`, `wallet-stamps.png`, `vault-new.png`.
-- Pagos y secretos comparten tarjeta y lenguaje visual; solo cambia el ícono (💸 / 🔑 / 🔒).
-- **Pendiente:** aprobación de Cristóbal sobre las capturas; los ajustes que pida se hacen directamente en los componentes.
+**Post-development summary**
+- `wallet_getCapabilities` announces `pap: {secrets, visas, gate}` under `0x85`.
+- `wallet_grantPermissions` (EIP-7715 subset): one `erc20-token-allowance` permission; reports whether an active on-chain visa already exists. **Change from the plan:** it does not open an automatic grant; the visa is granted on the phone, because the agent can only ask. Supported fields are documented.
+- `wallet_sendCalls` / `wallet_getCallsStatus` (EIP-5792): each transfer follows the `eth_sendTransaction` rules in order. **Deviation:** today it is one approval per call, not one for the whole batch, and `atomicRequired: true` answers 5760 (unsupported). A batch with a single Face ID needs a `batch` request type on the phone (left as debt).
+- Tested in `rpc-signer-test.mjs` (batch of 2 → 2 receipts).
 
 ---
 
-### PAP-12 — `/wallet`: pestañas Agentes · Bóveda · Sellos
+## Epic: UX / UI
 
-- **Estado:** done
-- **Épica:** UX
-- **Depende de:** PAP-02, PAP-15
+### PAP-15 — Approval and Vault mockups
 
-**Descripción**
-Reorganizar `web/src/app/wallet/page.tsx` en tres pestañas. **Agentes** (existente + cuántos secretos puede pedir cada uno). **Bóveda** (secretos sellados: agente, visa, último acceso; botones Revocar y Rotar). **Sellos** (historial existente + accesos a secretos).
+- **Status:** done
+- **Epic:** UX
+- **Depends on:** —
 
-**Casos de uso**
-- El humano ve qué agente puede leer qué.
-- El humano revoca un secreto filtrado y lo rota.
+**Description**
+Mockups (static HTML in the style of the time) of: the secret approval card, the payment card (for comparison), the Vault tab, the rejected state and the limit-exceeded state.
 
-**Criterios de aceptación**
-- Revocar llama a `revoke` on-chain + `DELETE /api/secrets/:name`.
-- Rotar = revocar + guía para sellar el nuevo valor.
-- Funciona en un iPhone de 390px sin scroll horizontal.
+**Use cases**
+- Validate the look before building PAP-04 and PAP-12.
 
-**Pruebas**
-- Manual en iPhone.
-- Revocar → el siguiente reveal del agente falla.
+**Acceptance criteria**
+- Approved by Cristóbal.
+- The same visual language for payments and secrets (only the label changes).
 
-**Resumen post-desarrollo**
-- `/wallet` con barra inferior fija (🤖 Agentes · 🔑 Bóveda · 🛂 Sellos), alcanzable con el pulgar y con `safe-area-inset-bottom` para iPhone. Aprobaciones pendientes siempre visibles arriba.
-- `components/Vault.tsx`: secretos por agente, lecturas usadas/permitidas (on-chain si hay visa), expiración, última lectura; **Revocar** (Face ID → `revoke` + `DELETE`) y **Rotar** (revoca y guía para `pap seal` con el valor nuevo).
-- `components/Stamps.tsx`: pagos 💸 y lecturas 🔑 de HSK en una sola línea de tiempo, indicando si ejecutó el humano o el agente. `Agents.tsx` muestra la visa y cuántos secretos puede pedir cada agente.
-- Arreglos encontrados al revisar capturas a 390px: los errores largos rompían el ancho (ahora parten línea), y si fallaba el RPC desaparecían las aprobaciones pendientes (ahora cada lectura es independiente).
-- Revisado con capturas de Playwright a 390px contra el relay local. **Pendiente:** prueba manual en iPhone.
+**Tests**
+- Visual review on an iPhone (390 px wide).
+
+**Post-development summary**
+- Instead of static mockups, the real screens were built and captured at 390 px with Playwright against the local relay: `docs/img/phone/approve-reveal.png`, `wallet-agents.png`, `wallet-vault.png`, `wallet-stamps.png`, `vault-new.png`.
+- Payments and secrets share the card and its visual language; only the label changes (Payment / Secret / Seal since PAP-31).
+- **Pending:** Cristóbal's sign-off on the screenshots; requested changes go straight into the components.
 
 ---
 
-### PAP-13 — Notificaciones push en la PWA
+### PAP-12 — `/wallet`: Agents · Vault · Stamps tabs
 
-- **Estado:** done
-- **Épica:** UX
-- **Depende de:** PAP-04
+- **Status:** done
+- **Epic:** UX
+- **Depends on:** PAP-02, PAP-15
 
-**Descripción**
-Web Push (iOS 16.4+ con la PWA instalada). El teléfono se suscribe al emparejar; el relay envía un push con cada request nuevo; al tocarlo se abre `/approve/:id`. El QR queda solo para emparejar y como plan B.
+**Description**
+Reorganize `web/src/app/wallet/page.tsx` into three tabs. **Agents** (existing + how many secrets each one can ask for). **Vault** (sealed secrets: agent, visa, last read; Revoke and Rotate buttons). **Stamps** (existing history + secret reads).
 
-**Casos de uso**
-- El agente pide un secreto y al humano le llega "Claude Code quiere leer OpenAI".
+**Use cases**
+- The human sees which agent can read what.
+- The human revokes a leaked secret and rotates it.
 
-**Criterios de aceptación**
-- El push no incluye datos sensibles (solo agente + tipo de acción).
-- Si el push falla, el QR sigue funcionando.
+**Acceptance criteria**
+- Revoke calls on-chain `revoke` + `DELETE /api/secrets/:name`.
+- Rotate = revoke + guidance to seal the new value.
+- Works on a 390 px iPhone without horizontal scroll.
 
-**Pruebas**
-- Manual en iPhone con la PWA instalada.
-- Suscripción caducada → fallback a QR sin error.
+**Tests**
+- Manual on an iPhone.
+- Revoke → the agent's next reveal fails.
 
-**Resumen post-desarrollo**
-- `public/sw.js` (service worker): muestra la notificación y al tocarla abre `/approve/:id`. `components/PushToggle.tsx` en `/wallet`: botón "🔔 Get approvals as notifications" (pide permiso, suscribe, firma con Face ID); en iPhone sin instalar muestra la guía "Add to Home Screen".
-- Relay: `POST/GET /api/push/subscribe` (suscripción firmada por el dueño, hasta 5 dispositivos) y `lib/push.ts` con `web-push` (VAPID). Se envía con `after()` al crear un request o un seal, así que **nunca retrasa ni rompe** la creación del request; suscripciones muertas (404/410) se eliminan.
-- El payload solo lleva agente + tipo de acción ("X wants to read a secret"): ni monto, ni dirección, ni nombre del secreto, ni reason.
-- **Configuración pendiente en Vercel:** `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (y opcional `VAPID_SUBJECT`). Se generan con `npx web-push generate-vapid-keys`. Sin ellas, push queda apagado y el QR sigue funcionando.
-- Prueba: `mcp/scripts/push-test.ts` con un servicio push falso por HTTPS que descifra el mensaje como un navegador (RFC 8291): **10 checks**. Pendiente: prueba en iPhone real.
-
----
-
-### PAP-14 — `/vault/new`: sellar desde el navegador
-
-- **Estado:** done
-- **Épica:** UX
-- **Depende de:** PAP-01, PAP-02
-
-**Descripción**
-Página para sellar sin terminal: pegar secreto, elegir agente de una lista, elegir expiración y máximo de accesos; cifra en el navegador (PAP-01) y dispara el `grant` en el teléfono (PAP-07).
-
-**Casos de uso**
-- Un usuario no técnico entrega una key a su agente.
-
-**Criterios de aceptación**
-- El texto plano nunca sale del navegador.
-- Confirmación: "🔒 Sellado para <agente>. Ni el servidor puede leerlo."
-
-**Pruebas**
-- Sellar desde web → `pap_secret` → valor correcto.
-- Inspeccionar la red: ninguna petición lleva el texto plano.
-
-**Resumen post-desarrollo**
-- `/vault/new` (enlazada desde **Bóveda → + Seal a secret**): eliges agente de una lista, nombre, valor (campo password), máximo de lecturas y días. Face ID → cifra en el navegador → `grant` on-chain → firma `SealRequest` como dueño → el relay lo guarda **activo** de una (sin segundo paso).
-- El texto plano nunca sale del dispositivo: al relay solo llega el blob cifrado.
-- Si el relay no tiene la llave pública del agente, se explica cómo resolverlo; `pap_secrets_list` / `pap secret list` ahora la publican automáticamente.
-- Captura a 390px: `docs/img/phone/vault-new.png`. Pendiente: prueba real en iPhone con HSK.
+**Post-development summary**
+- `/wallet` with a fixed bottom bar (Agents · Vault · Stamps), reachable with the thumb and with `safe-area-inset-bottom` for iPhone. Pending approvals always visible at the top.
+- `components/Vault.tsx`: secrets per agent, reads used/allowed (on-chain when there is a visa), expiry, last read; **Revoke** (Face ID → `revoke` + `DELETE`) and **Rotate** (revokes and guides to `pap seal` with the new value).
+- `components/Stamps.tsx`: payments and reads from HSK in a single timeline, showing whether the human or the agent executed them. `Agents.tsx` shows the visa and how many secrets each agent can ask for.
+- Fixes found while reviewing 390 px screenshots: long errors broke the width (they now wrap), and if the RPC failed the pending approvals disappeared (each read is now independent).
+- Reviewed with Playwright screenshots at 390 px against the local relay. **Pending:** manual test on an iPhone.
 
 ---
 
-## Épica: Skills
+### PAP-13 — Push notifications in the PWA
 
-### PAP-16 — Skills `pap-secrets` y `pap-seal`
+- **Status:** done
+- **Epic:** UX
+- **Depends on:** PAP-04
 
-- **Estado:** done
-- **Épica:** Skills
-- **Depende de:** PAP-05, PAP-06
+**Description**
+Web Push (iOS 16.4+ with the PWA installed). The phone subscribes at pairing; the relay sends a push for every new request; tapping it opens `/approve/:id`. The QR stays for pairing and as plan B.
 
-**Descripción**
-`.claude/skills/pap-secrets/SKILL.md` y `.claude/skills/pap-seal/SKILL.md` en formato Agent Skills (frontmatter `name` + `description`). Reglas de oro: **siempre explica por qué**, **nunca expongas un secreto**, **un rechazo es final**. `pap-secrets`: preferir el gate antes de revelar; pedir con reason concreto; usar `pap secret exec` o variables de entorno; nunca imprimir, loguear ni commitear. `pap-seal`: guiar al humano con `pap seal` sin pegar el secreto en el chat.
+**Use cases**
+- The agent asks for a secret and the human gets "Claude Code wants to read OpenAI".
 
-**Casos de uso**
-- Claude Code necesita una key y sigue el protocolo correcto sin que nadie se lo diga.
-- El humano dice "guarda mi key de Stripe para el agente".
+**Acceptance criteria**
+- The push carries no sensitive data (only the agent + the action type).
+- If the push fails, the QR still works.
 
-**Criterios de aceptación**
-- La skill se activa sola ante "necesito la API key de X".
-- Las tres reglas de oro aparecen explícitas.
+**Tests**
+- Manual on an iPhone with the PWA installed.
+- Expired subscription → falls back to the QR without an error.
 
-**Pruebas**
-- Sesión de Claude Code: pedir una tarea que requiere una key → usa `pap_secret` con reason y no imprime el valor.
-- Rechazar en el teléfono → el agente se detiene y avisa.
-- Pedir "imprime la key" → el agente se niega.
+**Post-development summary**
+- `public/sw.js` (service worker): shows the notification and opens `/approve/:id` when tapped. `components/PushToggle.tsx` in `/wallet`: "Get approvals as notifications" button (asks for permission, subscribes, signs with Face ID); on an iPhone without the PWA installed it shows the "Add to Home Screen" guide.
+- Relay: `POST/GET /api/push/subscribe` (subscription signed by the owner, up to 5 devices) and `lib/push.ts` with `web-push` (VAPID). Sent with `after()` when a request or seal is created, so it **never delays or breaks** request creation; dead subscriptions (404/410) are removed.
+- The payload only carries the agent + the action type ("X wants to read a secret"): no amount, address, secret name or reason.
+- **Configuration pending on Vercel:** `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (and optionally `VAPID_SUBJECT`), generated with `npx web-push generate-vapid-keys`. Without them push stays off and the QR keeps working.
+- Test: `mcp/scripts/push-test.ts` with a fake HTTPS push service that decrypts the message like a browser (RFC 8291): **10 checks**. Pending: test on a real iPhone.
 
-**Resumen post-desarrollo**
-- `.claude/skills/pap-secrets/SKILL.md`: se activa ante cualquier necesidad de credencial; flujo gate → lista → `pap_secret` (entrega en archivo) o `pap secret exec`; tabla de errores; las tres reglas de oro explícitas.
-- `.claude/skills/pap-seal/SKILL.md`: guía al humano a sellar desde **su** terminal o desde `/vault/new`; qué hacer si pega un secreto en el chat (recomendar rotarlo, no usarlo); cómo elegir límites.
-- Formato Agent Skills (frontmatter `name` + `description`), así que sirve fuera de Claude Code.
-- **Pendiente:** las pruebas con sesiones reales de Claude Code (que la skill se active sola, que se niegue a imprimir la key) necesitan un agente emparejado contra el relay de producción.
+---
+
+### PAP-14 — `/vault/new`: seal from the browser
+
+- **Status:** done
+- **Epic:** UX
+- **Depends on:** PAP-01, PAP-02
+
+**Description**
+A page to seal without a terminal: paste the secret, pick the agent from a list, pick the expiry and maximum reads; it encrypts in the browser (PAP-01) and triggers the `grant` on the phone (PAP-07).
+
+**Use cases**
+- A non-technical user hands a key to their agent.
+
+**Acceptance criteria**
+- The plaintext never leaves the browser.
+- Confirmation: "Sealed for <agent>. Not even the server can read it."
+
+**Tests**
+- Seal from the web → `pap_secret` → correct value.
+- Inspect the network: no request carries the plaintext.
+
+**Post-development summary**
+- `/vault/new` (linked from **Vault → + Seal a secret**): pick the agent from a list, a name, the value (password field), maximum reads and days. Face ID → encrypt in the browser → on-chain `grant` → sign `SealRequest` as the owner → the relay stores it **active** right away (no second step).
+- The plaintext never leaves the device: the relay only receives the encrypted blob.
+- If the relay does not have the agent's public key, the page explains how to fix it; `pap_secrets_list` / `pap secret list` now publish it automatically.
+- 390 px screenshot: `docs/img/phone/vault-new.png`. Pending: real test on an iPhone with HSK.
+
+---
+
+## Epic: Skills
+
+### PAP-16 — Skills `pap-secrets` and `pap-seal`
+
+- **Status:** done
+- **Epic:** Skills
+- **Depends on:** PAP-05, PAP-06
+
+**Description**
+`.claude/skills/pap-secrets/SKILL.md` and `.claude/skills/pap-seal/SKILL.md` in Agent Skills format (`name` + `description` frontmatter). Golden rules: **always say why**, **never expose a secret**, **a rejection is final**. `pap-secrets`: prefer the gate before revealing; ask with a concrete reason; use `pap secret exec` or environment variables; never print, log or commit. `pap-seal`: guide the human through `pap seal` without pasting the secret into the chat.
+
+**Use cases**
+- Claude Code needs a key and follows the right protocol without being told.
+- The human says "store my Stripe key for the agent".
+
+**Acceptance criteria**
+- The skill activates by itself on "I need the X API key".
+- The three golden rules are explicit.
+
+**Tests**
+- Claude Code session: ask for a task that needs a key → it uses `pap_secret` with a reason and does not print the value.
+- Reject on the phone → the agent stops and says so.
+- Ask "print the key" → the agent refuses.
+
+**Post-development summary**
+- `.claude/skills/pap-secrets/SKILL.md`: activates on any credential need; gate → list → `pap_secret` (file delivery) or `pap secret exec` flow; error table; the three golden rules explicit.
+- `.claude/skills/pap-seal/SKILL.md`: guides the human to seal from **their** terminal or from `/vault/new`; what to do if they paste a secret into the chat (recommend rotating it, do not use it); how to pick limits.
+- Agent Skills format (`name` + `description` frontmatter), so it works outside Claude Code too.
+- **Pending:** tests with real Claude Code sessions (the skill activates by itself, refuses to print the key) need an agent paired against the production relay.
 
 ---
 
 ### PAP-17 — Skills `pap-payments`, `pap-gate`, `pap-onboarding`, `pap-rpc`
 
-- **Estado:** done
-- **Épica:** Skills
-- **Depende de:** PAP-09
+- **Status:** done
+- **Epic:** Skills
+- **Depends on:** PAP-09
 
-**Descripción**
-- `pap-payments`: revisar `pap_canAct` antes de pedir; usar contactos; no partir pagos para evadir el límite.
-- `pap-gate`: ante un `402`, usar `pap_call_gate`.
-- `pap-onboarding`: `pap_connect`, explicar los txs y qué visas pedir.
-- `pap-rpc`: levantar `pap rpc` y apuntar `cast`, viem o ethers ahí en vez de pedir una private key.
+**Description**
+- `pap-payments`: check `pap_canAct` before asking; use contacts; do not split payments to dodge the limit.
+- `pap-gate`: on a `402`, use `pap_call_gate`.
+- `pap-onboarding`: `pap_connect`, explain the transactions and which visas to ask for.
+- `pap-rpc`: start `pap rpc` and point `cast`, viem or ethers at it instead of asking for a private key.
 
-**Casos de uso**
-- El agente recibe `402` de un servicio y lo resuelve solo.
-- El agente necesita hacer `cast send` y no pide una private key.
+**Use cases**
+- The agent gets a `402` from a service and handles it by itself.
+- The agent needs to run `cast send` and does not ask for a private key.
 
-**Criterios de aceptación**
-- Cada skill con disparadores claros en `description`.
-- Ninguna skill sugiere poner una private key en `.env`.
+**Acceptance criteria**
+- Every skill has clear triggers in its `description`.
+- No skill suggests putting a private key in `.env`.
 
-**Pruebas**
-- Una sesión de Claude Code por skill con un prompt que la dispare.
+**Tests**
+- One Claude Code session per skill with a prompt that triggers it.
 
-**Resumen post-desarrollo**
-- `.claude/skills/pap-payments` (revisar visa, contactos, memo claro, no partir pagos, rechazo final), `pap-gate` (402 → `pap_call_gate`, preferir gate antes que secretos, protocolo para otros lenguajes), `pap-onboarding` (emparejar, qué visa elegir, notificaciones, otros clientes MCP) y `pap-rpc` (levantar `pap rpc` y apuntar cast/viem/ethers/web3.py; nunca `--private-key`).
-- Cada `description` dice cuándo activarse. Ninguna skill sugiere poner una private key en `.env`.
-- **Pendiente:** probar cada skill en una sesión real de Claude Code con un agente emparejado contra producción.
-
----
-
-### PAP-18 — Plugin de Claude Code + `docs/AGENTS.md`
-
-- **Estado:** done
-- **Épica:** Skills
-- **Depende de:** PAP-16, PAP-17
-
-**Descripción**
-Empaquetar skills + servidor MCP como plugin de Claude Code (`/plugin install pap`). Publicar el mismo contenido como `docs/AGENTS.md` (prompt de sistema) para agentes sin soporte de skills.
-
-**Casos de uso**
-- Instalar PAP en cualquier proyecto con un comando, sin clonar el repo.
-- Un agente de otro proveedor usa `AGENTS.md` como instrucciones.
-
-**Criterios de aceptación**
-- El plugin instala MCP + skills y funciona en un proyecto vacío.
-- `AGENTS.md` cubre las mismas reglas que las skills.
-
-**Pruebas**
-- Instalar el plugin en un repo vacío → "conecta PAP" → flujo completo.
-
-**Resumen post-desarrollo**
-- Plugin en `plugin/` (`.claude-plugin/plugin.json`, `.mcp.json` con `${CLAUDE_PLUGIN_ROOT}/dist/pap.mjs`, las 6 skills y la CLI) + marketplace en `.claude-plugin/marketplace.json`. Instalación: `/plugin marketplace add DevCristobalvc/ethereum-builders-tour-cali` → `/plugin install pap@pap`.
-- Un plugin se copia a un caché al instalarse y no puede referenciar archivos fuera de su carpeta, así que `scripts/sync-plugin.mjs` copia bundles y skills (reescribe la ruta de la CLI a `${CLAUDE_PLUGIN_ROOT}`); el CI verifica que esté al día.
-- Verificado: `claude plugin validate` (plugin `--strict` y marketplace) pasa; instalación real en un HOME aislado → plugin habilitado, el bundle desde el caché expone las 8 tools.
-- `docs/AGENTS.md`: las mismas reglas y una tabla "qué usar cuándo" para agentes sin soporte de skills.
+**Post-development summary**
+- `.claude/skills/pap-payments` (check the visa, contacts, clear memo, no split payments, rejection is final), `pap-gate` (402 → `pap_call_gate`, prefer the gate over secrets, protocol for other languages), `pap-onboarding` (pairing, which visa to choose, notifications, other MCP clients) and `pap-rpc` (start `pap rpc` and point cast/viem/ethers/web3.py at it; never `--private-key`).
+- Every `description` says when to activate. No skill suggests a private key in `.env`.
+- **Pending:** try each skill in a real Claude Code session with an agent paired against production.
 
 ---
 
-## Épica: Landing / Front
+### PAP-18 — Claude Code plugin + `docs/AGENTS.md`
 
-Principios para toda la épica:
-- **Contar una historia**: cada pantalla del scroll es un paso, y quien solo lee los títulos entiende el producto.
-- **Muy poco texto**: una frase por sección y como mucho una línea de apoyo.
-- **Mobile first**: se diseña primero a 390px y luego se escala a escritorio.
-- **Se reutiliza el estilo actual** (fondo renacentista, Cormorant + Barlow Condensed, acento vino, grano de papel) y el `web/src/components/landing/motion.tsx` existente.
+- **Status:** done
+- **Epic:** Skills
+- **Depends on:** PAP-16, PAP-17
 
-### PAP-21 — Referencia Hermes Agent + storyboard de la landing
+**Description**
+Package the skills + MCP server as a Claude Code plugin (`/plugin install pap`). Publish the same content as `docs/AGENTS.md` (system prompt) for agents without skills support.
 
-- **Estado:** done
-- **Épica:** Landing
-- **Depende de:** —
+**Use cases**
+- Install PAP in any project with one command, without cloning the repo.
+- An agent from another vendor uses `AGENTS.md` as its instructions.
 
-**Descripción**
-Estudiar la web de Hermes Agent como referencia (animaciones por scroll, loops infinitos, ritmo, cantidad de texto) y escribir el storyboard de la nueva landing en `docs/LANDING.md`: lista de secciones, la frase de cada una, qué se anima y cómo se ve en mobile. Historia propuesta:
-1. **Hero**: "Tu agente tiene pasaporte. Tú firmas las visas."
-2. **Problema**: una key en `.env` = acceso total, para siempre.
-3. **Pasaporte**: el agente recibe identidad, no llaves.
-4. **Visa**: tú decides qué puede hacer, cuánto y hasta cuándo.
-5. **Face ID**: cada acción sensible pasa por tu teléfono.
-6. **Secretos**: tus credenciales, selladas con dos firmas.
-7. **Cadena**: las reglas las cumple el contrato, no la app.
-8. **Instálalo** → **Crea tus credenciales** → CTA.
+**Acceptance criteria**
+- The plugin installs the MCP server + skills and works in an empty project.
+- `AGENTS.md` covers the same rules as the skills.
 
-**Casos de uso**
-- El equipo se alinea en la historia antes de programar animaciones.
+**Tests**
+- Install the plugin in an empty repo → "connect PAP" → full flow.
 
-**Criterios de aceptación**
-- Storyboard aprobado por Cristóbal.
-- Cada sección tiene como máximo 12 palabras de título y 20 de apoyo.
-- Lista de referencias concretas tomadas de Hermes Agent (qué efecto y dónde).
-
-**Pruebas**
-- Prueba de los 5 segundos: alguien que no conoce PAP lee solo los títulos y explica de qué trata.
-
-**Resumen post-desarrollo**
-- Storyboard en `docs/LANDING.md`: 12 pantallas en orden, titular (≤ 12 palabras), línea de apoyo (≤ 20), animación y versión mobile de cada una; reglas de movimiento reducido, sin saltos de layout y sin librerías nuevas.
-- **Limitación:** la web oficial de Hermes Agent no se pudo abrir desde el entorno (política de red bloquea el dominio; tampoco hay código fuente público de esa landing en el repo de Nous). Los efectos se definieron a partir de tu descripción (historia con scroll, triggers, loops infinitos, terminal que escribe, poco texto) y quedaron documentados como propios, no copiados.
-- **Pendiente:** tu aprobación del storyboard y la prueba de los 5 segundos con alguien que no conozca PAP.
+**Post-development summary**
+- Plugin in `plugin/` (`.claude-plugin/plugin.json`, `.mcp.json` with `${CLAUDE_PLUGIN_ROOT}/dist/pap.mjs`, the 6 skills and the CLI) + marketplace in `.claude-plugin/marketplace.json`. Install: `/plugin marketplace add DevCristobalvc/ethereum-builders-tour-cali` → `/plugin install pap@pap`.
+- A plugin is copied into a cache on install and cannot reference files outside its folder, so `scripts/sync-plugin.mjs` copies the bundles and skills (rewriting the CLI path to `${CLAUDE_PLUGIN_ROOT}`); CI checks it is up to date.
+- Verified: `claude plugin validate` (plugin `--strict` and marketplace) passes; a real install in an isolated HOME → plugin enabled, the bundle from the cache exposes the 8 tools.
+- `docs/AGENTS.md`: the same rules and a "what to use when" table for agents without skills support.
 
 ---
 
-### PAP-22 — Landing narrativa con animaciones por scroll
+## Epic: Landing / Front
 
-- **Estado:** done
-- **Épica:** Landing
-- **Depende de:** PAP-21
+Principles for the whole epic:
+- **Tell a story**: each scroll screen is a step, and someone who only reads the headings understands the product.
+- **Very little text**: one sentence per section and at most one supporting line.
+- **Mobile first**: design at 390 px first, then scale up to desktop.
+- **Reuse the existing style** and the existing `web/src/components/landing/motion.tsx` (the style was later replaced by the white-paper look in PAP-31).
 
-**Descripción**
-Reescribir `web/src/app/page.tsx` según el storyboard. Animaciones disparadas por scroll (scroll triggers): entradas con fade y desplazamiento, secciones fijas (sticky) donde el contenido cambia mientras haces scroll, un contador que avanza, y el teléfono mockup que va mostrando cada paso (pairing → visa → Face ID → sello). Evaluar `motion` (Framer Motion) o GSAP ScrollTrigger + Lenis frente a extender `motion.tsx`; elegir uno solo.
+### PAP-21 — Hermes Agent reference + landing storyboard
 
-**Casos de uso**
-- Un jurado o usuario hace scroll y entiende el flujo completo sin leer párrafos.
+- **Status:** done
+- **Epic:** Landing
+- **Depends on:** —
 
-**Criterios de aceptación**
-- Implementa todas las secciones del storyboard.
-- Scroll fluido a 60 fps en un iPhone de gama media.
-- Sin saltos de layout (CLS < 0.1).
-- Se mantienen los enlaces actuales (repo, docs, explorer, stats en vivo).
+**Description**
+Study the Hermes Agent website as a reference (scroll animations, infinite loops, pacing, amount of text) and write the new landing storyboard in `docs/LANDING.md`: list of sections, each one's sentence, what animates and how it looks on mobile. Proposed story:
+1. **Hero**: "Your agent has a passport. You stamp the visas."
+2. **Problem**: a key in `.env` = full access, forever.
+3. **Passport**: the agent gets an identity, not keys.
+4. **Visa**: you decide what it can do, how much and until when.
+5. **Face ID**: every sensitive action goes through your phone.
+6. **Secrets**: your credentials, sealed with two signatures.
+7. **Chain**: the contract enforces the rules, not the app.
+8. **Install it** → **Create your credentials** → CTA.
 
-**Pruebas**
-- Manual en Safari iOS, Chrome Android y escritorio.
-- Lighthouse: performance ≥ 85 en mobile.
+**Use cases**
+- The team agrees on the story before building animations.
 
-**Resumen post-desarrollo**
-- `web/src/app/page.tsx` reescrita según el storyboard: hero (se mantiene la Creación de Adán con la chispa), problema ("A key in .env is a blank check" con la línea `PRIVATE_KEY=` tachándose), historia de 5 pasos, cómo funciona, instalar, API keys, servicios, en vivo y footer.
-- `components/landing/story.tsx`: en escritorio un teléfono fijo cambia de pantalla (QR de emparejamiento → visa → aprobar pago con sello → leer secreto con reason → sellos on-chain con `LimitExceeded`) a medida que cada paso llega al centro; en mobile cada paso trae su propio teléfono.
-- Sin librería de animación nueva: IntersectionObserver + CSS + un hook de progreso de scroll (`motion.tsx`).
-- Lighthouse (producción): mobile **performance 89–94** según la corrida (partía de 68), CLS 0; desktop 100. Para llegar ahí: el h1 ya no entra con animación (era el LCP), fondo con `next/image` responsive, menos pesos de fuentes y viem se carga solo cuando las estadísticas en vivo entran en pantalla (TBT de 410 → ~100 ms).
-- Capturas: `docs/img/landing/`. Pendiente: prueba en Safari iOS y Chrome Android reales.
+**Acceptance criteria**
+- Storyboard approved by Cristóbal.
+- Each section has at most 12 words of heading and 20 of support.
+- List of concrete references taken from Hermes Agent (which effect and where).
 
----
+**Tests**
+- 5-second test: someone who does not know PAP reads only the headings and explains what it is about.
 
-### PAP-23 — Diagrama animado "Cómo funciona"
-
-- **Estado:** done
-- **Épica:** Landing
-- **Depende de:** PAP-21
-
-**Descripción**
-Diagrama SVG en línea que se va dibujando con el scroll: **Agente → Relay → Teléfono (Face ID) → HashKey Chain**, y la variante de secretos (**sello por capas → doble firma → agente**). Cada nodo se ilumina cuando la historia llega a ese paso. En mobile se muestra en vertical.
-
-**Casos de uso**
-- Entender en un vistazo quién firma, quién guarda qué y qué hace la cadena.
-
-**Criterios de aceptación**
-- Dos flujos: pagos y secretos.
-- Legible en 390px (vertical) y en escritorio (horizontal).
-- Colores desde los tokens del tema, nada fijo en el código.
-- Texto del diagrama accesible (no es una imagen).
-
-**Pruebas**
-- Revisión visual en mobile y escritorio.
-- Lector de pantalla lee los pasos en orden.
-
-**Resumen post-desarrollo**
-- `components/landing/how.tsx`: "Who signs what" con pestañas **Payments** (agente → relay → teléfono → HSK) y **Secrets** (laptop → relay → teléfono → HSK → agente); la línea se dibuja con el scroll y cada nodo se ilumina cuando la línea lo alcanza.
-- Vertical en mobile, horizontal en escritorio; es una lista ordenada HTML (no una imagen), así que el lector de pantalla lee los pasos en orden. Colores solo de los tokens del tema.
-- Capturas: `docs/img/landing/mobile-how.png`, `desktop-how.png`.
+**Post-development summary**
+- Storyboard in `docs/LANDING.md`: 12 screens in order, heading (≤ 12 words), supporting line (≤ 20), animation and mobile version for each; rules for reduced motion, no layout shift and no new libraries.
+- **Limitation:** the official Hermes Agent website could not be opened from the environment (the network policy blocks the domain, and the landing's source is not public in the Nous repo). The effects were defined from the description given (scroll story, triggers, infinite loops, typing terminal, little text) and documented as our own, not copied.
+- **Pending:** storyboard sign-off and the 5-second test with someone who does not know PAP.
 
 ---
 
-### PAP-24 — Sección "Instálalo en tu agente"
+### PAP-22 — Narrative landing with scroll animations
 
-- **Estado:** done
-- **Épica:** Landing
-- **Depende de:** PAP-18, PAP-21
+- **Status:** done
+- **Epic:** Landing
+- **Depends on:** PAP-21
 
-**Descripción**
-Sección con pestañas y botón de copiar por agente:
-- **Claude Code**: `/plugin install pap` (o `.mcp.json` mientras no exista el plugin).
-- **Cursor / Claude Desktop**: bloque JSON de configuración MCP.
-- **Cualquier agente**: `npx pap rpc` + `--rpc-url http://localhost:8545`.
+**Description**
+Rewrite `web/src/app/page.tsx` following the storyboard. Scroll-triggered animations: fade-and-slide entrances, sticky sections whose content changes while scrolling, a counter that ticks up, and a phone mockup that shows each step (pairing → visa → Face ID → stamp). Evaluate `motion` (Framer Motion) or GSAP ScrollTrigger + Lenis against extending `motion.tsx`; pick only one.
+
+**Use cases**
+- A judge or user scrolls and understands the full flow without reading paragraphs.
+
+**Acceptance criteria**
+- Implements every section of the storyboard.
+- Smooth 60 fps scroll on a mid-range iPhone.
+- No layout shift (CLS < 0.1).
+- The existing links are kept (repo, docs, explorer, live stats).
+
+**Tests**
+- Manual on iOS Safari, Android Chrome and desktop.
+- Lighthouse: mobile performance ≥ 85.
+
+**Post-development summary**
+- `web/src/app/page.tsx` rewritten per the storyboard: hero (the Creation of Adam image), problem ("A key in .env is a blank check" with the `PRIVATE_KEY=` line being struck through), 5-step story, how it works, install, API keys, services, live and footer.
+- `components/landing/story.tsx`: on desktop a pinned phone changes screen (pairing QR → visa → approve a payment with a stamp → read a secret with a reason → on-chain stamps with `LimitExceeded`) as each step reaches the middle; on mobile each step carries its own phone.
+- No new animation library: IntersectionObserver + CSS + a scroll-progress hook (`motion.tsx`).
+- Lighthouse (production): mobile **performance 89–94** depending on the run (from 68), CLS 0; desktop 100. To get there: the h1 no longer animates in (it was the LCP), the background uses a responsive `next/image`, fewer font weights, and viem only loads once the live stats come on screen (TBT from 410 → ~100 ms).
+- Screenshots: `docs/img/landing/`. Pending: test on real iOS Safari and Android Chrome.
+
+---
+
+### PAP-23 — Animated "How it works" diagram
+
+- **Status:** done
+- **Epic:** Landing
+- **Depends on:** PAP-21
+
+**Description**
+Inline diagram that draws itself on scroll: **Agent → Relay → Phone (Face ID) → HashKey Chain**, plus the secrets variant (**layered seal → dual signature → agent**). Each node lights up when the story reaches that step. Vertical on mobile.
+
+**Use cases**
+- Understand at a glance who signs, who stores what and what the chain does.
+
+**Acceptance criteria**
+- Two flows: payments and secrets.
+- Readable at 390 px (vertical) and on desktop (horizontal).
+- Colors from the theme tokens, nothing hard-coded.
+- Accessible diagram text (not an image).
+
+**Tests**
+- Visual review on mobile and desktop.
+- A screen reader reads the steps in order.
+
+**Post-development summary**
+- `components/landing/how.tsx`: "Who signs what" with **Payments** (agent → relay → phone → HSK) and **Secrets** (laptop → relay → phone → HSK → agent) tabs; the line draws on scroll and each node lights up when the line reaches it.
+- Vertical on mobile, horizontal on desktop; it is an HTML ordered list (not an image), so a screen reader reads the steps in order. Colors only from theme tokens.
+- Screenshots: `docs/img/landing/mobile-how.png`, `desktop-how.png`.
+
+---
+
+### PAP-24 — "Install it in your agent" section
+
+- **Status:** done
+- **Epic:** Landing
+- **Depends on:** PAP-18, PAP-21
+
+**Description**
+A section with tabs and a copy button per agent:
+- **Claude Code**: `/plugin install pap` (or `.mcp.json` until the plugin exists).
+- **Cursor / Claude Desktop**: MCP config JSON block.
+- **Any agent**: `npx pap rpc` + `--rpc-url http://localhost:8545`.
 - **CLI**: `pap secret exec <name> -- <cmd>`.
-Terminal animada que escribe el comando y muestra el QR de emparejamiento (se reutiliza el "typing gate terminal" actual).
+An animated terminal types the command and shows the pairing QR (reusing the existing typing gate terminal).
 
-**Casos de uso**
-- Un usuario de Claude Code instala PAP en menos de un minuto desde la landing.
+**Use cases**
+- A Claude Code user installs PAP in under a minute from the landing.
 
-**Criterios de aceptación**
-- Los comandos se copian con un toque (también en mobile).
-- Cada comando mostrado funciona tal cual (verificado contra el código).
-- 3 pasos visibles: instalar → escanear QR → listo.
+**Acceptance criteria**
+- Commands copy with one tap (on mobile too).
+- Every command shown works as is (checked against the code).
+- 3 visible steps: install → scan the QR → done.
 
-**Pruebas**
-- Copiar y pegar cada comando en una máquina limpia → funciona.
+**Tests**
+- Copy and paste each command on a clean machine → it works.
 
-**Resumen post-desarrollo**
-- `Install` en `components/landing/install.tsx`: pestañas **Claude Code** (`/plugin marketplace add …` + `/plugin install pap@pap`), **Cursor · Desktop** (clone + JSON de MCP), **Any agent** (`pap rpc` o `curl` a `/api/rpc`) y **CLI** (`pap secret exec`), con botón Copy (44 px, funciona con el dedo) y los 3 pasos Install → Scan the QR → Done. Terminal que escribe el flujo emparejar → pedir secreto.
-- Cada comando mostrado existe en el código de esta rama (plugin validado e instalado en prueba, CLI y RPC con sus tests).
-- Pendiente: probar copiar/pegar en una máquina limpia contra producción.
-
----
-
-### PAP-25 — Sección "Crea tus credenciales"
-
-- **Estado:** done
-- **Épica:** Landing
-- **Depende de:** PAP-06, PAP-14, PAP-21
-
-**Descripción**
-Explicar en 3 pasos animados cómo sellar una credencial: **pegas la key** (`pap seal openai` o `/vault/new`) → **eliges agente y límites** → **🔒 sellada: solo se abre con su firma + la tuya**. Después se muestra la tarjeta del teléfono cuando el agente la pide. Enlace directo a `/vault/new`.
-
-**Casos de uso**
-- El usuario entiende cómo entregar una API key a su agente sin pegarla en un chat ni en un `.env`.
-
-**Criterios de aceptación**
-- Dos caminos visibles: terminal y web.
-- Se explica en una línea qué **no** protege (una vez entregada, el agente la tiene) con enlace al modelo de amenaza.
-
-**Pruebas**
-- Prueba con un usuario: tras leer la sección sabe sellar una key sin ayuda.
-
-**Resumen post-desarrollo**
-- `Credentials`: 3 pasos que se iluminan en orden mientras la sección está en pantalla (pegar en tu laptop → elegir agente y límites → sellada), terminal con `pap seal` (valor oculto) y botón "Or seal it from your phone" → `/vault/new`.
-- Una línea explica lo que **no** protege (una vez entregada, el agente la tiene) con enlace al modelo de amenaza de `docs/SECURITY.md`.
-- Pendiente: prueba con un usuario.
+**Post-development summary**
+- `Install` in `components/landing/install.tsx`: **Claude Code** (`/plugin marketplace add …` + `/plugin install pap@pap`), **Cursor · Desktop** (clone + MCP JSON), **Any agent** (`pap rpc` or `curl` to `/api/rpc`) and **CLI** (`pap secret exec`) tabs, with a Copy button (44 px, works with a finger) and the 3 steps Install → Scan the QR → Done. A terminal types the pair → ask-for-a-secret flow.
+- Every command shown exists in the code (plugin validated and test-installed, CLI and RPC with their tests).
+- Pending: copy/paste test on a clean machine against production.
 
 ---
 
-### PAP-26 — Mobile first: landing + experiencia PWA
+### PAP-25 — "Create your credentials" section
 
-- **Estado:** done
-- **Épica:** Landing
-- **Depende de:** PAP-22
+- **Status:** done
+- **Epic:** Landing
+- **Depends on:** PAP-06, PAP-14, PAP-21
 
-**Descripción**
-- **Landing en mobile**: animaciones adaptadas (menos parallax, sticky más cortos), tipografía y espaciado a 390px, botones al alcance del pulgar.
-- **La PWA** (`/wallet`, `/approve`, `/pair`): barra de navegación inferior (Agentes · Bóveda · Sellos), aviso guiado "Añadir a pantalla de inicio" en iOS (necesario para push y Face ID cómodo), estados vacíos con una sola acción clara.
-- Si la landing se abre en un teléfono, se muestra el CTA "Abrir mi pasaporte" en vez de "Instalar en tu agente".
+**Description**
+Explain in 3 animated steps how to seal a credential: **paste the key** (`pap seal openai` or `/vault/new`) → **pick the agent and limits** → **sealed: it only opens with its signature + yours**. Then show the phone card when the agent asks for it. Direct link to `/vault/new`.
 
-**Casos de uso**
-- El humano aprueba desde el teléfono con una mano.
-- Alguien abre la landing en el celular y termina con la PWA instalada.
+**Use cases**
+- The user understands how to hand an API key to their agent without pasting it into a chat or a `.env`.
 
-**Criterios de aceptación**
-- Sin scroll horizontal en ninguna pantalla a 360–430px.
-- Objetivos táctiles de al menos 44px.
-- Guía de instalación en iOS y Android.
+**Acceptance criteria**
+- Two visible paths: terminal and web.
+- One line explains what it does **not** protect (once released, the agent has it) with a link to the threat model.
 
-**Pruebas**
-- Manual en iPhone (Safari) y Android (Chrome).
-- Instalar la PWA desde la landing en ambos.
+**Tests**
+- User test: after reading the section they can seal a key without help.
 
-**Resumen post-desarrollo**
-- Landing diseñada primero a 390 px: sin scroll horizontal (verificado a 390 y 1280), objetivos táctiles ≥ 44 px, fuentes y espaciado propios de mobile, la historia no depende de `position: sticky` en mobile.
-- `HeroCTA`: en un teléfono el botón principal es **"Open my passport"** (va a la PWA) y el secundario "Install in your agent"; en escritorio al revés.
-- PWA: barra inferior Agents · Vault · Stamps (PAP-12), guía "Add to Home Screen" en iPhone sin instalar (PAP-13) y estados vacíos con una sola acción.
-- Se permite zoom (se quitó `maximum-scale=1` del viewport, pedido por accesibilidad).
-- Pendiente: instalar la PWA desde la landing en iPhone y Android reales.
+**Post-development summary**
+- `Credentials`: 3 steps that light up in order while the section is on screen (paste on your laptop → pick the agent and limits → sealed), a terminal with `pap seal` (hidden value) and an "Or seal it from your phone" button → `/vault/new`.
+- One line explains what it does **not** protect (once released, the agent has it) with a link to the threat model in `docs/SECURITY.md`.
+- Pending: user test.
 
 ---
 
-### PAP-27 — Marquee infinito de compatibilidad
+### PAP-26 — Mobile first: landing + PWA experience
 
-- **Estado:** done
-- **Épica:** Landing
-- **Depende de:** PAP-22
+- **Status:** done
+- **Epic:** Landing
+- **Depends on:** PAP-22
 
-**Descripción**
-Cinta en loop infinito (se reutiliza el marquee actual) con lo que funciona con PAP: Claude Code, Cursor, Claude Desktop, cast, viem, ethers, web3.py, MCP, JSON-RPC, EIP-1193, ERC-8004, x402, HashKey Chain. Dos filas en sentidos opuestos; se pausa al pasar el cursor o al tocar.
+**Description**
+- **Landing on mobile**: adapted animations (less parallax, shorter sticky sections), type and spacing at 390 px, buttons within thumb reach.
+- **The PWA** (`/wallet`, `/approve`, `/pair`): bottom navigation bar (Agents · Vault · Stamps), guided "Add to Home Screen" prompt on iOS (required for push and comfortable Face ID), empty states with a single clear action.
+- If the landing is opened on a phone, show the "Open my passport" CTA instead of "Install in your agent".
 
-**Casos de uso**
-- Transmitir "funciona con cualquier agente" sin escribir un párrafo.
+**Use cases**
+- The human approves from the phone with one hand.
+- Someone opens the landing on their phone and ends up with the PWA installed.
 
-**Criterios de aceptación**
-- Loop sin cortes visibles.
-- Solo lista integraciones que funcionan de verdad en ese momento.
+**Acceptance criteria**
+- No horizontal scroll on any screen at 360–430 px.
+- Touch targets of at least 44 px.
+- Install guide for iOS and Android.
 
-**Pruebas**
-- Revisión visual; verificar cada integración listada contra el código.
+**Tests**
+- Manual on iPhone (Safari) and Android (Chrome).
+- Install the PWA from the landing on both.
 
-**Resumen post-desarrollo**
-- `Marquee`: dos filas infinitas en sentidos opuestos (Claude Code, Cursor, Claude Desktop, MCP, Agent Skills, JSON-RPC 2.0, EIP-1193, EIP-712 / cast, viem, ethers, web3.py, ERC-8004, x402-style gate, Web Push, HSK Chain); se pausa con hover o con un toque.
-- Todas las integraciones listadas existen en esta rama (cast/ethers/web3.py van por `pap rpc`, probado con viem; ver pendiente de PAP-09).
-
----
-
-### PAP-28 — Rendimiento y accesibilidad de animaciones
-
-- **Estado:** done
-- **Épica:** Landing
-- **Depende de:** PAP-22 a PAP-27
-
-**Descripción**
-Pasada final: respetar `prefers-reduced-motion` (animaciones sustituidas por estados estáticos), carga diferida de imágenes y del diagrama, fuentes optimizadas, contraste AA en todos los textos sobre el fondo.
-
-**Casos de uso**
-- Un usuario con movimiento reducido activado ve la historia completa sin animaciones.
-
-**Criterios de aceptación**
-- Lighthouse mobile: performance ≥ 85, accesibilidad ≥ 95.
-- Con reduced motion, todo el contenido es visible y legible.
-
-**Pruebas**
-- Lighthouse en mobile y escritorio.
-- Activar reduced motion en iOS y revisar la landing completa.
-
-**Resumen post-desarrollo**
-- Lighthouse con build de producción (performance / accessibility / best practices): **desktop 100 / 100 / 100**; **mobile 89–94 / 100 / 100** (la performance simulada varía entre corridas); CLS 0 en todas. Punto de partida: mobile 68 / 85 / 96.
-- Arreglos: color `--muted` más oscuro (≥ 5:1 en todos los tonos de papel, mejora también la PWA), estados atenuados al 60 %, rosa más claro sobre fondo oscuro, enlaces subrayados dentro de texto, `<dl>` válido, zoom permitido.
-- `prefers-reduced-motion`: sin animaciones en curso y **0 bloques de texto ocultos** (verificado con Playwright en modo reducido); el contenido que entra animado tiene estado final estático.
+**Post-development summary**
+- Landing designed at 390 px first: no horizontal scroll (checked at 390 and 1280), touch targets ≥ 44 px, mobile-specific type and spacing, the story does not depend on `position: sticky` on mobile.
+- `HeroCTA`: on a phone the primary button is **"Open my passport"** (goes to the PWA) and the secondary one "Install in your agent"; the other way around on desktop.
+- PWA: bottom bar Agents · Vault · Stamps (PAP-12), "Add to Home Screen" guide on an iPhone without the PWA installed (PAP-13) and empty states with a single action.
+- Zoom is allowed (`maximum-scale=1` removed from the viewport, required for accessibility).
+- Pending: install the PWA from the landing on a real iPhone and Android.
 
 ---
 
-## Épica: Documentación
+### PAP-27 — Infinite compatibility marquee
 
-### PAP-19 — Documentación: arquitectura de secretos y modelo de amenaza
+- **Status:** done
+- **Epic:** Landing
+- **Depends on:** PAP-22
 
-- **Estado:** done
-- **Épica:** Docs
-- **Depende de:** PAP-07
+**Description**
+An infinite loop strip (reusing the existing marquee) listing what works with PAP: Claude Code, Cursor, Claude Desktop, cast, viem, ethers, web3.py, MCP, JSON-RPC, EIP-1193, ERC-8004, x402, HashKey Chain. Two rows in opposite directions; pauses on hover or tap.
 
-**Descripción**
-Sección "Secrets" en `docs/ARCHITECTURE.md` (flujo, formato de blob, EIP-712, visa on-chain), actualización de `docs/SECURITY.md` con el modelo de amenaza (protege la entrega, no el uso; mitigaciones) y del README (nueva fila en la tabla de modos + tools nuevas).
+**Use cases**
+- Convey "works with any agent" without writing a paragraph.
 
-**Casos de uso**
-- Un jurado o auditor entiende qué garantiza y qué no.
+**Acceptance criteria**
+- Loop without visible seams.
+- Only lists integrations that actually work at that moment.
 
-**Criterios de aceptación**
-- Diagrama del flujo de doble firma.
-- Lista explícita de lo que **no** protege.
+**Tests**
+- Visual review; check every listed integration against the code.
 
-**Pruebas**
-- Revisión por alguien del equipo que no haya implementado la feature.
-
-**Resumen post-desarrollo**
-- `docs/ARCHITECTURE.md`: sección **Sealed secrets** con diagrama del flujo de doble firma (laptop → relay → teléfono → agente), tabla de piezas, por qué ese orden de capas y los dos caminos de sellado; secciones JSON-RPC, Notificaciones y Plugin; tools y scripts de prueba nuevos.
-- `docs/SECURITY.md`: **Sealed secrets — threat model** con garantías (2-de-2 criptográfico, ligado a agente + nombre, firmas de un solo uso, límites on-chain antes de entregar) y una lista explícita de lo que **no** protege (uso después de entregar, máquina del agente comprometida, humano que aprueba sin leer, teléfono comprometido, disponibilidad del relay, carreras de nonce, `record()` del agente, metadatos).
-- `README.md`: sección "Sealed secrets (iteration 4)", instalación del plugin, cómo sellar, estructura del repo y fila 4 en el roadmap.
-- **Pendiente:** revisión por alguien del equipo que no haya implementado la feature.
+**Post-development summary**
+- `Marquee`: two infinite rows in opposite directions (Claude Code, Cursor, Claude Desktop, MCP, Agent Skills, JSON-RPC 2.0, EIP-1193, EIP-712 / cast, viem, ethers, web3.py, ERC-8004, x402-style gate, Web Push, HSK Chain); pauses on hover or a tap.
+- Every listed integration exists in the code (cast/ethers/web3.py go through `pap rpc`, tested with viem; see PAP-09's pending item).
 
 ---
 
-## Épica: QA y pulido (post-hackathon)
+### PAP-28 — Animation performance and accessibility
 
-### PAP-29 — Pasada de pruebas completa
+- **Status:** done
+- **Epic:** Landing
+- **Depends on:** PAP-22 to PAP-27
 
-- **Estado:** done
-- **Épica:** QA
-- **Depende de:** —
+**Description**
+Final pass: respect `prefers-reduced-motion` (animations replaced by static states), lazy-load images and the diagram, optimized fonts, AA contrast for every text on the background.
 
-**Descripción**
-Correr todas las suites del repo (lint, typecheck, build, Foundry + fork, unit del MCP, integración contra relay local en memoria, E2E con la CLI y el MCP, E2E on-chain contra producción, gate, push, UI en navegador) y registrar lo que falla.
+**Use cases**
+- A user with reduced motion enabled sees the whole story without animations.
 
-**Criterios de aceptación**
-- Cada suite corrida con su resultado anotado aquí; cada fallo real tiene ticket.
+**Acceptance criteria**
+- Lighthouse mobile: performance ≥ 85, accessibility ≥ 95.
+- With reduced motion, all content is visible and readable.
 
-**Pruebas**
+**Tests**
+- Lighthouse on mobile and desktop.
+- Enable reduced motion on iOS and review the whole landing.
+
+**Post-development summary**
+- Lighthouse on a production build (performance / accessibility / best practices): **desktop 100 / 100 / 100**; **mobile 89–94 / 100 / 100** (simulated performance varies between runs); CLS 0 everywhere. Starting point: mobile 68 / 85 / 96.
+- Fixes: darker `--muted` color (≥ 5:1 on every paper tone, which also improves the PWA), dimmed states at 60 %, lighter pink on dark backgrounds, underlined links inside text, valid `<dl>`, zoom allowed.
+- `prefers-reduced-motion`: no running animations and **0 hidden text blocks** (checked with Playwright in reduced mode); content that animates in has a static end state.
+
+---
+
+## Epic: Documentation
+
+### PAP-19 — Docs: secrets architecture and threat model
+
+- **Status:** done
+- **Epic:** Docs
+- **Depends on:** PAP-07
+
+**Description**
+A "Secrets" section in `docs/ARCHITECTURE.md` (flow, blob format, EIP-712, on-chain visa), an update of `docs/SECURITY.md` with the threat model (protects delivery, not use; mitigations) and of the README (new row in the modes table + new tools).
+
+**Use cases**
+- A judge or auditor understands what is guaranteed and what is not.
+
+**Acceptance criteria**
+- Diagram of the dual-signature flow.
+- Explicit list of what it does **not** protect.
+
+**Tests**
+- Review by a team member who did not build the feature.
+
+**Post-development summary**
+- `docs/ARCHITECTURE.md`: **Sealed secrets** section with a diagram of the dual-signature flow (laptop → relay → phone → agent), a table of the parts, why the layers are in that order and the two sealing paths; JSON-RPC, Notifications and Plugin sections; new tools and test scripts.
+- `docs/SECURITY.md`: **Sealed secrets — threat model** with the guarantees (cryptographic 2-of-2, bound to agent + name, single-use signatures, on-chain limits before release) and an explicit list of what it does **not** protect (use after release, a compromised agent machine, a human who approves without reading, a compromised phone, relay availability, nonce races, the agent's `record()`, metadata).
+- `README.md`: "Sealed secrets (iteration 4)" section, plugin install, how to seal, repo layout and row 4 in the roadmap.
+- **Pending:** review by a team member who did not build the feature.
+
+---
+
+## Epic: QA and polish (post-hackathon)
+
+### PAP-29 — Full test pass
+
+- **Status:** done
+- **Epic:** QA
+- **Depends on:** —
+
+**Description**
+Run every suite in the repo (lint, typecheck, build, Foundry + fork, MCP unit tests, integration against an in-memory local relay, E2E with the CLI and the MCP, on-chain E2E against production, gate, push, UI in a browser) and record what fails.
+
+**Acceptance criteria**
+- Every suite run with its result recorded here; every real failure has a ticket.
+
+**Tests**
 - `forge test` (+ `--fork-url hashkey_testnet`), `mcp: npm test`, `mcp/scripts/*`, `web/scripts/*`, `next build`, `eslint`, `tsc`.
 
-**Comentarios**
-- Visas demo de los agentes #4 y #6 expiradas en testnet → `Fork.t.sol` (1 test) y `gate-test.mjs` fallan por datos, no por código.
-- `secrets-e2e.mjs` asumía `/` como separador de ruta (fallaba en Windows) → arreglado.
-- `eslint`: 5 errores `react-hooks/purity` y `set-state-in-effect` (`approve/[id]`, `wallet`, `Agents`, `WalletGate`) → PAP-32.
+**Comments**
+- The demo visas of agents #4 and #6 expired on testnet → `Fork.t.sol` (1 test) and `gate-test.mjs` fail because of data, not code.
+- `secrets-e2e.mjs` assumed `/` as the path separator (failed on Windows) → fixed.
+- `eslint`: 5 `react-hooks/purity` and `set-state-in-effect` errors (`approve/[id]`, `wallet`, `Agents`, `WalletGate`) → PAP-32.
 
-**Resumen post-desarrollo (2026-09-28)**
+**Post-development summary (2026-09-28)**
 
-| Suite | Resultado |
+| Suite | Result |
 |---|---|
 | `tsc` web + mcp | ok |
-| `next build` | ok (25 rutas) |
-| `eslint` web | 5 errores, 1 warning → PAP-32 |
-| `forge test` | 37 pass, 3 skip (fork) |
-| `forge test --fork-url hashkey_testnet` | 2 pass, 1 fail `GrantExpired` (visa del agente #4 vencida; dato, no código) |
+| `next build` | ok (25 routes) |
+| `eslint` web | 5 errors, 1 warning → PAP-32 |
+| `forge test` | 37 pass, 3 skipped (fork) |
+| `forge test --fork-url hashkey_testnet` | 2 pass, 1 fail `GrantExpired` (agent #4's visa expired; data, not code) |
 | `mcp: npm test` (crypto, EIP-712) | 10/10 |
-| bundles `mcp/dist`, `plugin/`, `pap-core`, ABIs | sin drift |
-| `rpc-test.ts` local y producción | 18/18 y 18/18 |
+| bundles `mcp/dist`, `plugin/`, `pap-core`, ABIs | no drift |
+| `rpc-test.ts` local and production | 18/18 and 18/18 |
 | `secrets-relay-test.ts` | 27/27 |
-| `secrets-e2e.mjs` (CLI + MCP) | 11/11 tras arreglar el separador de ruta |
+| `secrets-e2e.mjs` (CLI + MCP) | 11/11 after fixing the path separator |
 | `rpc-signer-test.mjs` (`pap rpc`, EIP-1193/5792/7715) | 20/20 |
 | `relay-test.mjs` | ok |
 | `push-test.ts` (Web Push) | 10/10 |
-| `gate-test.mjs` local y producción | falla: visa del agente #6 vencida; la lógica rechaza con la razón correcta |
-| `e2e.mjs` on-chain contra producción | OK tras PAP-30 (agente #11: onboarding 4 txs, pago 10, 500 → `LimitExceeded`, rechazo, gate `ACCESS GRANTED`) |
-| Sondas de API con inputs inválidos (producción) | 4xx correctos; hallazgos → PAP-33, PAP-34 |
+| `gate-test.mjs` local and production | fails: agent #6's visa expired; the logic refuses for the right reason |
+| `e2e.mjs` on-chain against production | OK after PAP-30 (agent #11: 4-transaction onboarding, payment of 10, 500 → `LimitExceeded`, rejection, gate `ACCESS GRANTED`) |
+| API probes with invalid inputs (production) | correct 4xx; findings → PAP-33, PAP-34 |
 | `claude plugin validate` (plugin + marketplace) | ok |
-| Navegador: landing, `/wallet`, `/approve`, `/show` | sin errores propios en consola, 0 imágenes rotas; 15 emojis (PAP-31); links rotos a `main` (PAP-36); `/show` con id inexistente (PAP-35) |
-| Lighthouse producción | mobile 89 / 100 / 100 / 100, desktop 99 / 100 / 100 / 100, CLS 0 |
+| Browser: landing, `/wallet`, `/approve`, `/show` | no console errors of our own, 0 broken images; 15 emojis (PAP-31); broken links to `main` (PAP-36); `/show` with an unknown id (PAP-35) |
+| Lighthouse production | mobile 89 / 100 / 100 / 100, desktop 99 / 100 / 100 / 100, CLS 0 |
 
-### PAP-30 — Carrera de nonce en txs consecutivas del teléfono
+### PAP-30 — Nonce race in back-to-back phone transactions
 
-- **Estado:** done
-- **Épica:** QA
-- **Depende de:** —
+- **Status:** done
+- **Epic:** QA
+- **Depends on:** —
 
-**Descripción**
-El RPC de HSK testnet está balanceado; justo después de un receipt, otro nodo puede devolver el nonce viejo y la siguiente tx choca con "replacement transaction underpriced". Pasa en el onboarding (4 txs seguidas) de la PWA y de `phone-sim.mjs`. Fix: `nonceManager` de viem en la cuenta, para que el nonce se lleve localmente.
+**Description**
+The HSK testnet RPC is load-balanced; right after a receipt, another node can return the old nonce and the next transaction collides with "replacement transaction underpriced". It happens in the onboarding (4 transactions in a row) of the PWA and of `phone-sim.mjs`. Fix: viem's `nonceManager` on the account, so the nonce is tracked locally.
 
-**Criterios de aceptación**
-- `mcp/scripts/e2e.mjs` contra producción pasa completo.
-- El onboarding de la PWA usa la misma cuenta con `nonceManager`.
+**Acceptance criteria**
+- `mcp/scripts/e2e.mjs` against production passes end to end.
+- The PWA onboarding uses the same account with `nonceManager`.
 
-**Pruebas**
-- `node mcp/scripts/e2e.mjs` (reproducía el fallo en `faucet()` 2 de 2 veces).
+**Tests**
+- `node mcp/scripts/e2e.mjs` (reproduced the failure on `faucet()` 2 times out of 2).
 
-**Resumen post-desarrollo**
-- `privateKeyToAccount(pk, { nonceManager })` en `web/src/lib/onchain.ts` (PWA) y `web/scripts/phone-sim.mjs`. Con el fix, `e2e.mjs` pasa completo contra producción.
+**Post-development summary**
+- `privateKeyToAccount(pk, { nonceManager })` in `web/src/lib/onchain.ts` (PWA) and `web/scripts/phone-sim.mjs`. With the fix, `e2e.mjs` passes end to end against production.
 
-### PAP-31 — Landing con estilo white paper
+### PAP-31 — White-paper landing
 
-- **Estado:** done
-- **Épica:** Landing
-- **Depende de:** PAP-22 a PAP-28
+- **Status:** done
+- **Epic:** Landing
+- **Depends on:** PAP-22 to PAP-28
 
-**Descripción**
-Hacer la landing más profesional, tipo white paper: sin emojis, tipografía serif editorial para títulos y cuerpo legible, paleta sobria (tinta sobre papel, un solo color de acento), menos ornamento.
+**Description**
+Make the landing more professional, like a white paper: no emojis, an editorial serif for headings and readable body text, a sober palette (ink on paper, a single accent color), less ornament.
 
-**Criterios de aceptación**
-- 0 emojis en la landing (verificado con búsqueda en el código y en el HTML servido).
-- Nueva tipografía y paleta aplicadas en claro y oscuro; contraste AA.
-- Lighthouse igual o mejor que PAP-28.
+**Acceptance criteria**
+- 0 emojis on the landing (checked by searching the code and the served HTML).
+- New type and palette applied; AA contrast.
+- Lighthouse equal to or better than PAP-28.
 
-**Pruebas**
-- Grep de emojis en `web/src`; revisión visual desktop y móvil; Lighthouse.
+**Tests**
+- Emoji grep over `web/src`; visual review on desktop and mobile; Lighthouse.
 
-**Resumen post-desarrollo**
-- Tipografía: Source Serif 4 (títulos y cuerpo), IBM Plex Sans (UI), IBM Plex Mono (código y rótulos). Salen Cormorant, Barlow, Inter y Geist.
-- Paleta en tokens (`globals.css`): papel `#fbfaf7`, tinta `#16181d`, un solo acento azul tinta `#1f3b63`; bloques de código con tokens `code-*`. Sin grano, destellos ni barrido en botones; botones rectos.
-- Estructura de paper: bloque de título con *Abstract*, Figura 1 (la imagen en escala de grises con pie), secciones numeradas 1–7 (Problem, Design 2.1–2.5, Protocol, Integration, Sealed credentials, Service verification, Deployment), Tabla 1 de contratos y **References** [1]–[5].
-- **0 emojis** en `web/src` y `web/public` (landing y PWA): etiquetas de texto (`Payment`, `Secret`, `Seal`, `Pay`, `Read`), números `01…` en el diagrama y los pasos, estado `Approved`/`Rejected` en `/show`.
-- Verificado con Playwright (iPhone 13 y 1440 px): sin overflow horizontal, sin errores de consola. Pendiente: Lighthouse sobre producción y rehacer las capturas de `docs/img/landing`.
+**Post-development summary**
+- Type: Source Serif 4 (headings and body), IBM Plex Sans (UI), IBM Plex Mono (code and labels). Cormorant, Barlow, Inter and Geist are gone.
+- Palette as tokens (`globals.css`): paper `#fbfaf7`, ink `#16181d`, a single ink-blue accent `#1f3b63`; code blocks with `code-*` tokens. No grain, glow or button sweep; square buttons.
+- Paper structure: title block with an *Abstract*, Figure 1 (the image in grayscale with a caption), numbered sections 1–7 (Problem, Design 2.1–2.5, Protocol, Integration, Sealed credentials, Service verification, Deployment), Table 1 of contracts and **References** [1]–[5].
+- **0 emojis** in `web/src` and `web/public` (landing and PWA): text labels (`Payment`, `Secret`, `Seal`, `Pay`, `Read`), `01…` numbers in the diagram and steps, an `Approved`/`Rejected` status on `/show`.
+- Checked with Playwright (iPhone 13 and 1440 px): no horizontal overflow, no console errors. Lighthouse on production after PAP-38: desktop 100 / 100 / 100 / 100, mobile 82–86 / 100 / 100 / 100. The `docs/img/landing` screenshots are redone in PAP-40.
 
-### PAP-32 — Errores de lint de React Compiler
+### PAP-32 — React Compiler lint errors
 
-- **Estado:** done
-- **Épica:** QA
-- **Depende de:** —
+- **Status:** done
+- **Epic:** QA
+- **Depends on:** —
 
-**Descripción**
-Resolver los 5 errores de `eslint` (`Date.now()` durante el render, `setState` síncrono en effects) sin cambiar comportamiento.
+**Description**
+Fix the 5 `eslint` errors (`Date.now()` during render, synchronous `setState` in effects) without changing behavior.
 
-**Criterios de aceptación**
-- `npx eslint .` en `web/` sin errores.
+**Acceptance criteria**
+- `npx eslint .` in `web/` with no errors.
 
-**Resumen post-desarrollo**
-- `useNow()` (`useSyncExternalStore`, un tick por segundo) reemplaza `Date.now()` en el render de `/approve`, `/wallet` y `Agents`.
-- `WalletGate` lee la wallet con `useSyncExternalStore` (`storedWalletRaw`) en lugar de `setState` en un effect.
-- `/wallet`: `refresh()` solo hace `setState` después de sus `await`; queda un `eslint-disable` puntual con la razón.
-- `npx eslint .` sin errores ni warnings.
+**Post-development summary**
+- `useNow()` (`useSyncExternalStore`, one tick per second) replaces `Date.now()` in the render of `/approve`, `/wallet` and `Agents`.
+- `WalletGate` reads the wallet with `useSyncExternalStore` (`storedWalletRaw`) instead of `setState` in an effect.
+- `/wallet`: `refresh()` only calls `setState` after its `await`s; a single `eslint-disable` remains, with the reason.
+- `npx eslint .` with no errors or warnings.
 
-### PAP-33 — `/api/fund` sin límite: se puede vaciar el funder
+### PAP-33 — `/api/fund` without limits: the funder can be drained
 
-- **Estado:** done
-- **Épica:** QA / Seguridad
-- **Depende de:** —
+- **Status:** done
+- **Epic:** QA / Security
+- **Depends on:** —
 
-**Descripción**
-`POST /api/fund` envía 0.002 HSK a cualquier dirección con saldo bajo, sin firma ni rate limit. Con direcciones nuevas en bucle alguien vacía la wallet del funder y el onboarding deja de funcionar para usuarios reales. Además, pedidos concurrentes chocan en el nonce (mismo problema que PAP-30).
+**Description**
+`POST /api/fund` sends 0.002 HSK to any address with a low balance, with no signature and no rate limit. Looping over fresh addresses, anyone can drain the funder wallet and onboarding stops working for real users. Concurrent requests also collide on the nonce (same problem as PAP-30).
 
-**Criterios de aceptación**
-- Solo se fondea una dirección que firmó el pedido y que tiene un pairing pendiente o aprobado en el relay; máximo una vez por dirección.
-- Rate limit por IP.
-- Cuenta del funder con `nonceManager`.
+**Acceptance criteria**
+- At most once per address.
+- Rate limit per IP.
+- Funder account with `nonceManager`.
 
-**Pruebas**
-- Dirección aleatoria sin pairing → 403; segunda llamada para la misma dirección → no fondea.
+**Tests**
+- A second call for the same address does not fund; over the limit → 429.
 
-**Resumen post-desarrollo**
-- Una firma no sirve aquí (cualquiera genera llaves), así que el control son límites: una vez por dirección, 3 por IP al día y 30 por hora en total (contadores en el store del relay, best-effort). Por encima → 429 con mensaje que remite al faucet.
-- La dirección se marca como fondeada solo si la tx se confirmó; un fallo de envío responde 502 y permite reintentar.
-- Cuenta del funder con `nonceManager`.
-- Probado en local con un funder sin saldo: la 4.ª llamada desde la misma IP → 429.
+**Post-development summary**
+- A signature does not help here (anyone can generate keys), so the control is limits: once per address, 3 per IP per day and 30 per hour overall (counters in the relay store, best effort). Above them → 429 with a message pointing to the faucet.
+- The address is marked as funded only once the transaction confirms; a failed send answers 502 and allows a retry.
+- Funder account with `nonceManager`.
+- Tested locally with an unfunded funder: the 4th call from the same IP → 429.
 
-### PAP-34 — Tope al tamaño de batch en `/api/rpc`
+### PAP-34 — Batch size cap on `/api/rpc`
 
-- **Estado:** done
-- **Épica:** QA / Seguridad
-- **Depende de:** —
+- **Status:** done
+- **Epic:** QA / Security
+- **Depends on:** —
 
-**Descripción**
-Un batch JSON-RPC de 201 llamadas se procesa entero. Poner un máximo (por ejemplo 50) y responder `-32600` por encima.
+**Description**
+A JSON-RPC batch of 201 calls was processed in full. Set a maximum (50) and answer `-32600` above it.
 
-**Criterios de aceptación**
-- Batch > límite → un solo error `-32600`; `rpc-test.ts` cubre el caso.
+**Acceptance criteria**
+- Batch over the limit → a single `-32600` error; `rpc-test.ts` covers the case.
 
-**Resumen post-desarrollo**
-- `MAX_BATCH = 50` en `/api/rpc`; por encima, un único `-32600` con `data.reason`. Caso nuevo en `rpc-test.ts` (19/19).
+**Post-development summary**
+- `MAX_BATCH = 50` in `/api/rpc`; above it, a single `-32600` with `data.reason`. New case in `rpc-test.ts` (19/19). Verified on production.
 
-### PAP-35 — `/show` y `/approve` con id inexistente
+### PAP-35 — `/show` with an unknown id
 
-- **Estado:** done
-- **Épica:** UX
-- **Depende de:** —
+- **Status:** done
+- **Epic:** UX
+- **Depends on:** —
 
-**Descripción**
-`/show/request/<id inexistente>` muestra el QR y "Waiting for your phone…" para siempre. Debe mostrar "Este pedido no existe o expiró".
+**Description**
+`/show/request/<unknown id>` showed the QR and "Waiting for your phone…" forever. It must say the request does not exist or has expired.
 
-**Criterios de aceptación**
-- id desconocido → mensaje claro, sin QR ni spinner.
+**Acceptance criteria**
+- Unknown id → clear message, no QR or spinner.
 
-**Resumen post-desarrollo**
-- `/show/<kind>/<id>`: un 404 del relay (o un `kind` desconocido) detiene el polling y muestra "This request does not exist or has expired".
+**Post-development summary**
+- `/show/<kind>/<id>`: a 404 from the relay (or an unknown `kind`) stops polling and shows "This request does not exist or has expired".
 
-### PAP-36 — Mergear la rama a `main` (links rotos en la landing)
+### PAP-36 — Merge the branch into `main` (broken landing links)
 
-- **Estado:** done
-- **Épica:** QA
-- **Depende de:** PAP-29, PAP-30
+- **Status:** done
+- **Epic:** QA
+- **Depends on:** PAP-29, PAP-30
 
-**Descripción**
-`main` va 19+ commits detrás de lo que está en producción. La landing enlaza a `blob/main/docs/RPC.md`, `docs/AGENTS.md` y al ancla `#sealed-secrets--threat-model` de SECURITY, que no existen en `main` → 404 en GitHub.
+**Description**
+`main` was 19+ commits behind what was in production. The landing links to `blob/main/docs/RPC.md`, `docs/AGENTS.md` and the SECURITY `#sealed-secrets--threat-model` anchor, which did not exist on `main` → 404 on GitHub.
 
-**Criterios de aceptación**
-- PR mergeado; los 14 links externos de la landing responden 200.
+**Acceptance criteria**
+- PR merged; the landing's 14 external links answer 200.
 
-**Resumen post-desarrollo**
-- PR #1 mergeado (CI verde: forge, mcp, web). Producción se despliega desde `main`; los 14 links externos responden 200.
+**Post-development summary**
+- PR #1 merged (green CI: forge, mcp, web). Production deploys from `main`; the 14 external links answer 200.
 
-### PAP-37 — Historial on-chain roto: el RPC limita `eth_getLogs`
+### PAP-37 — Broken on-chain history: the RPC limits `eth_getLogs`
 
-- **Estado:** done
-- **Épica:** QA
-- **Depende de:** —
+- **Status:** done
+- **Epic:** QA
+- **Depends on:** —
 
-**Descripción**
-El RPC público de HSK testnet responde `block range too large` por encima de ~5000 bloques, y el historial arranca en el deploy (~390k bloques atrás). Fallaban en silencio las estadísticas en vivo de la landing y la pestaña **Stamps** de la PWA (`readStamps`, `readSecretStamps`).
+**Description**
+The public HSK testnet RPC answers `block range too large` above ~5000 blocks, and the history starts at the deploy (~390k blocks back). The landing's live stats and the PWA's **Stamps** tab (`readStamps`, `readSecretStamps`) were failing silently.
 
-**Criterios de aceptación**
-- Landing muestra agentes, sellos y volumen reales; Stamps lista pagos y lecturas.
+**Acceptance criteria**
+- The landing shows real agents, stamps and volume; Stamps lists payments and reads.
 
-**Resumen post-desarrollo**
-- `web/src/lib/logs.ts`: `eventLogs()` lee del API Etherscan-style del explorer (Blockscout, CORS abierto, sin límite de rango), filtra por el primer argumento indexado y decodifica con viem; si el explorer falla, cae al RPC sobre los últimos 4000 bloques.
-- Verificado contra la cadena: 7 `Paid` (70 demoUSDT), 1 para el agente #11, historia vacía para un agente inexistente; landing local muestra 11 · 7 · 70.
+**Post-development summary**
+- `web/src/lib/logs.ts`: `eventLogs()` reads from the explorer's Etherscan-style API (Blockscout, open CORS, no range limit), filters on the first indexed argument and decodes with viem; if the explorer fails, it falls back to the RPC over the last 4000 blocks.
+- Checked against the chain: 7 `Paid` events (70 demoUSDT), 1 for agent #11, empty history for a nonexistent agent; the landing shows 11 · 7 · 70.
 
-### PAP-38 — Accesibilidad tras el rediseño
+### PAP-38 — Accessibility after the redesign
 
-- **Estado:** done
-- **Épica:** Landing
+- **Status:** done
+- **Epic:** Landing
+- **Depends on:** PAP-31
 
-**Descripción**
-Lighthouse bajó a 97: títulos inactivos de la historia con contraste 2.85:1 y la Tabla 1 sin encabezados.
+**Description**
+Lighthouse accessibility dropped to 97: inactive story headings had 2.85:1 contrast and Table 1 had no headers.
 
-**Resumen post-desarrollo**
-- Títulos inactivos al 60 % de tinta; `<thead>` con `Contract · Role · Address`.
+**Post-development summary**
+- Inactive headings at 60 % ink; `<thead>` with `Contract · Role · Address`. Accessibility back to 100 on mobile and desktop.
+
+### PAP-39 — English-only repository
+
+- **Status:** done
+- **Epic:** Docs
+- **Depends on:** —
+
+**Description**
+The repository mixed Spanish and English. Everything the judges and contributors read must be in English.
+
+**Acceptance criteria**
+- No Spanish prose in tracked files (docs, backlog, pitch, demo, video script).
+
+**Post-development summary**
+- Translated `backlog.md`, `docs/DEMO.md`, `docs/PITCH.md` and `docs/VIDEO.md`. While translating: the demo checklist now covers the plugin install and expired visas, and the video slides use the white-paper tokens.
+
+### PAP-40 — Final delivery polish
+
+- **Status:** done
+- **Epic:** Docs / QA
+- **Depends on:** PAP-39
+
+**Description**
+Everything a judge touches must be current and working: README, `docs/SUBMISSION.md`, landing screenshots, and a live demo agent with a valid visa.
+
+**Acceptance criteria**
+- README and SUBMISSION match what is deployed (features, links, numbers).
+- `docs/img/landing` shows the white-paper landing.
+- A demo agent with an active visa; `gate-test.mjs` passes against production.
+
+**Tests**
+- Link check over README and SUBMISSION; `gate-test.mjs` and `e2e.mjs` against production.
+
+**Post-development summary**
+- Demo visas renewed on HSK testnet (owner keys of the team's test wallets): agents #4 and #6, 100 demoUSDT until 2026-11-28 (txs `0x0cd8ea7c…` and `0xdc97756d…`). `gate-test.mjs` against production: valid 200, other key 403, tampered 403.
+- `Fork.t.sol`: `testFork_agent4_visa` no longer asserts a historical spend (it resets on renewal); it checks the invariants (active, limit, spent ≤ limit, not expired). Fork suite 3 / 3.
+- README: hero screenshot, three-tab wallet, how history is read, 37 unit tests, a **Tested** table with every suite, iteration 4 marked live, `backlog.md` in the repo map.
+- SUBMISSION: iteration 4 (sealed secrets, JSON-RPC, local signer, Web Push, plugin + skills), quality paragraph, all MCP tools, more stack tags, links to RPC / AGENTS / SECURITY, ready cover at `docs/img/cover.png` (1200×630).
+- New screenshots in `docs/img/landing` taken from production (desktop 1440 px, iPhone 13), plus `desktop-hero.png`.
+- ARCHITECTURE and `contracts/README.md` updated (wallet tabs, explorer API for full history, 37 tests). The STATE_OF_THE_ART comparison table uses Yes / No instead of emoji; the CLI's seal message has no emoji.
+- Left for the team: record and upload the video (`docs/VIDEO.md`), and the Devfolio fields marked [OK CRISTÓBAL] in `docs/SUBMISSION.md`.
+

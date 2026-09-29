@@ -65,7 +65,7 @@ Scope for ERC-20 transfers = `keccak256(abi.encodePacked("transfer:", token))` (
 | `GET /api/agents/:address` · `GET /api/agents/:address/card` | Agent record, ERC-8004 registration file |
 | `POST /api/fund` · `GET /api/health` | Testnet gas sponsor, health + addresses |
 
-Pages: `/` (landing) · `/wallet` (phone app: wallet + pending requests, **Your agents** with each on-chain visa — spent / limit bar, expiry — and **Passport stamps** = real `Paid` events read from HSK with amount, recipient, tx and executor *you* / *agent*) · `/pair/:id`, `/approve/:id` (phone) · `/show/pair/:id`, `/show/request/:id` (big QR for the laptop screen; the MCP opens them automatically).
+Pages: `/` (landing) · `/wallet` (phone app: wallet + pending requests and three tabs: **Agents** with each on-chain visa — spent / limit bar, expiry — **Vault** with the sealed secrets, and **Stamps** = every `Paid` and secret-read `ActionRecorded` event on HSK with amount, recipient, tx and executor *you* / *agent*; history comes from the explorer's Etherscan-style API because the public RPC caps `eth_getLogs` ranges) · `/pair/:id`, `/approve/:id` (phone) · `/show/pair/:id`, `/show/request/:id` (big QR for the laptop screen; the MCP opens them automatically).
 
 ## MCP server (`mcp/`)
 

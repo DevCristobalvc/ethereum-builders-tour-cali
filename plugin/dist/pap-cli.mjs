@@ -23865,7 +23865,7 @@ relay  ${id.relay}`);
     const value = await readValue();
     if (!value) err("empty value");
     const r = await seal(id, name, value, { maxReads, days });
-    console.log(`\u{1F512} Sealed "${name}" for ${id.name}: only opens with its signature + yours. The relay holds ciphertext only.`);
+    console.log(`Sealed "${name}" for ${id.name}: only opens with its signature + yours. The relay holds ciphertext only.`);
     console.log(`Approve on your phone to activate it (${maxReads} reads, ${days} days): ${r.url}`);
     if (r.replaces) console.log(`(replaces the current "${name}" once approved)`);
     openBrowser(r.showUrl);

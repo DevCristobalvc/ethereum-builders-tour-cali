@@ -50,17 +50,27 @@ TWO MODES, SAME VISA
 For HashKey Chain this is "compliant but private": any service can verify with one call — canAct(agentId, scope, amount) — that a real human authorized this agent for this scope, without learning who the human is.
 
 HOW IT WAS BUILT (Sep 19–20, Cali)
-- contracts/ — Foundry, Solidity 0.8.28. IdentityRegistry + ReputationRegistry (ERC-8004 interface-compatible), AgentPassport (grant / revoke / pay / record / canAct / getGrant), DemoUSDT, plus Groth16Verifier + PassportRegistry for the ZK iteration. 25 unit tests + 3 fork tests against the live HSK testnet deployment. All 6 contracts verified on Blockscout.
+- contracts/ — Foundry, Solidity 0.8.28. IdentityRegistry + ReputationRegistry (ERC-8004 interface-compatible), AgentPassport (grant / revoke / pay / record / canAct / getGrant), DemoUSDT, plus Groth16Verifier + PassportRegistry for the ZK iteration. 37 unit tests + 3 fork tests against the live HSK testnet deployment. All 6 contracts verified on Blockscout.
 - web/ — Next.js 16 on Vercel: the phone PWA (passkey wallet, /pair, /approve, /wallet), the relay API (/api/pair, /api/requests — state on Vercel Blob, no database, no keys server-side), a gas sponsor (/api/fund), and the ERC-8004 registration file per agent (/api/agents/:addr/card).
-- mcp/ — a Model Context Protocol server shipped as a standalone bundle (mcp/dist/pap.mjs, zero install): pap_connect, pap_transfer, pap_call_gate, pap_wait, pap_status, pap_contact_add. git clone → open Claude Code in the folder → approve the "pap" server from .mcp.json → the agent has an "ask permission" tool. Agent identity lives in ~/.pap/agent.json — no private key anywhere on the agent side. Works with any MCP client (Cursor, Claude Desktop).
+- mcp/ — a Model Context Protocol server shipped as a standalone bundle (mcp/dist/pap.mjs, zero install): pap_connect, pap_transfer, pap_call_gate, pap_secret, pap_secrets_list, pap_wait, pap_status, pap_contact_add. Also shipped as a Claude Code plugin (/plugin marketplace add DevCristobalvc/ethereum-builders-tour-cali, then /plugin install pap@pap) with six Agent Skills, and as a `pap` CLI. git clone → open Claude Code in the folder → approve the "pap" server from .mcp.json → the agent has an "ask permission" tool. Agent identity lives in ~/.pap/agent.json — no private key anywhere on the agent side. Works with any MCP client (Cursor, Claude Desktop).
 - Phone simulator (web/scripts/phone-sim.mjs) and E2E script (mcp/scripts/e2e.mjs) for CI-style runs without a device.
 
 THE GATE (iteration 2, live)
 GET /api/gate/oracle is an x402-shaped border: the first request gets a 402 with a challenge; the agent signs it with its identity key and retries; the gate verifies the signature, checks on-chain that the key is the agent's wallet in IdentityRegistry and that canAct() is true on AgentPassport, and answers 200. The agent does it alone with the pap_call_gate tool — no human involved, because the visa is active on-chain. Any service can put a "visa required" border in front of an endpoint with ~100 lines and no facilitator. Full E2E (pair → pay ok → LimitExceeded → gate ACCESS GRANTED) passes with the bundle.
 
+SEALED SECRETS AND ANY AGENT (iteration 4, live)
+- API keys handed to the agent with a double signature. The human seals a key on their laptop (pap seal openai) or from the phone; it is encrypted in two layers (phone, then agent) with ECIES secp256k1, and the relay only stores ciphertext. The agent signs an EIP-712 request with a reason; the human reads the reason and approves with Face ID; the phone removes its layer and stamps the read on HSK Chain (record() on scope "secret:<name>", max reads + expiry enforced by the contract); only the agent can open the rest. By default the value is written to a 0600 file, so it never enters the model's conversation.
+- Any agent, not only MCP: a JSON-RPC 2.0 interface (POST /api/rpc, pap_* methods) and a local Ethereum signer (pap rpc) so cast, viem, ethers or web3.py work without a private key; eth_decrypt, EIP-5792 wallet_sendCalls and an EIP-7715 subset included.
+- Web Push notifications for approvals (VAPID, RFC 8291), payload without amounts, addresses or secret names.
+- Threat model with an explicit list of what it does not protect: docs/SECURITY.md.
+
+QUALITY
+Every suite is recorded in backlog.md (40 tickets with acceptance criteria and a post-development summary). Integration suites: JSON-RPC 19/19, sealed secrets on the relay 27/27, CLI + MCP bundles 11/11, local signer 20/20, Web Push 10/10, and an on-chain E2E against production (pair → pay → LimitExceeded → gate).
+
 WHAT'S NEXT
 - Iteration 3 — ZK passport: prove "I am an authorized agent" with a Groth16 membership proof (zkpjwt-core, our own npm lib) without revealing which one. Verifier and registry already deployed; research in docs/STATE_OF_THE_ART.md.
 - RIP-7212 / account abstraction so the passkey signs on-chain directly; agent-to-agent payments.
+- Secrets read autonomously inside a visa, without Face ID each time (TEE custodian recommended in docs/AUTONOMOUS_SECRETS.md).
 ```
 
 ## Tracks
@@ -71,7 +81,7 @@ WHAT'S NEXT
 ## Tech stack (tags)
 
 ```
-Solidity, Foundry, ERC-8004, HashKey Chain, Next.js, TypeScript, viem, WebAuthn, Passkeys, PWA, Vercel, Model Context Protocol (MCP), Claude Code, Groth16, snarkjs, Circom
+Solidity, Foundry, ERC-8004, HashKey Chain, Next.js, TypeScript, viem, WebAuthn, Passkeys, PWA, Web Push, Vercel, Model Context Protocol (MCP), Claude Code, Agent Skills, JSON-RPC, EIP-712, EIP-1193, ECIES, Groth16, snarkjs, Circom
 ```
 
 ## Links
@@ -89,10 +99,13 @@ Solidity, Foundry, ERC-8004, HashKey Chain, Next.js, TypeScript, viem, WebAuthn,
 | Architecture / API reference | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/ARCHITECTURE.md |
 | Pitch | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/PITCH.md |
 | Gate (x402-shaped) | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/GATE.md |
+| JSON-RPC interface | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/RPC.md |
+| Guide for agents | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/AGENTS.md |
+| Security and threat model | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/SECURITY.md |
 
 ## Cover image / logo
 
-**[OK CRISTÓBAL]** — Devfolio asks for a cover (recommended 1200×630). Simplest: screenshot of the landing hero at https://pap.devcristobalvc.com, or the terminal QR + iPhone approve screen side by side.
+**[OK CRISTÓBAL]** — Devfolio asks for a cover (recommended 1200×630). Ready to upload: `docs/img/cover.png` (1200×630, cropped from the landing hero), or the terminal QR + iPhone approve screen side by side.
 
 ## HashKey Chain sponsor fields (if the form asks)
 

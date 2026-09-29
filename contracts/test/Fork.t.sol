@@ -49,9 +49,9 @@ contract ForkTest is Test {
         (uint256 limit, uint256 spent, uint64 expiry, bool active) = passport.getGrant(AGENT_ID, scope);
         assertTrue(active, "visa active");
         assertEq(limit, 100e6, "visa limit 100 demoUSDT");
-        assertGe(spent, 10e6, "at least the E2E payment of 10 was spent");
+        // `spent` resets whenever the owner renews the visa, so only its invariant is checked.
         assertLe(spent, limit, "never over the visa");
-        assertGt(expiry, 0);
+        assertGt(expiry, block.timestamp, "visa not expired");
     }
 
     function testFork_agentPaysInsideVisa_andIsBlockedOutside() public onlyFork {

@@ -65,13 +65,13 @@ prove *"I am one of the vetted agents"* without revealing *which* one.
 
 | Need | ERC-8004 | x402 | Semaphore / World ID | agent-passport (World ID) | **Ours** |
 |---|---|---|---|---|---|
-| Agent identity on-chain | ✅ | ❌ | ❌ | ✅ | ✅ (ERC-8004) |
-| Reputation / validation | ✅ | ❌ | ❌ | ✅ | ✅ (reads registry) |
-| Pay per request | ❌ | ✅ | ❌ | ❌ | ✅ (x402 flow) |
-| Prove "vetted" w/o revealing agentId | ❌ | ❌ | ✅ (generic) | partial (human, not agent set) | ✅ |
-| Unlinkable across services | ❌ | ❌ | ✅ | partial | ✅ (nullifier per service) |
+| Agent identity on-chain | Yes | No | No | Yes | Yes (ERC-8004) |
+| Reputation / validation | Yes | No | No | Yes | Yes (reads registry) |
+| Pay per request | No | Yes | No | No | Yes (x402 flow) |
+| Prove "vetted" w/o revealing agentId | No | No | Yes (generic) | partial (human, not agent set) | Yes |
+| Unlinkable across services | No | No | Yes | partial | Yes (nullifier per service) |
 | Needs orb / gov ID | – | – | World ID: yes | yes | **no** |
-| HashKey Chain | ❌ | ❌ | ❌ | ❌ | ✅ |
+| HashKey Chain | No | No | No | No | Yes |
 
 ## 4. Our thesis — Anonymous Agent Passport
 
