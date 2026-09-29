@@ -8,6 +8,8 @@ Built at **Ethereum Builders Tour: Cali** (Sep 19–20, 2026 · Ethereum Applica
 
 [![The PAP landing: a white paper with the abstract and Figure 1](docs/img/landing/desktop-hero.png)](https://pap.devcristobalvc.com)
 
+**Demo video (2 min, English with Spanish subtitles):** [`docs/demo.mp4`](docs/demo.mp4) — a real agent against production and HashKey Chain testnet: pairing, a payment approved from the phone, the transaction on the explorer, a 500 demoUSDT payment reverted with `LimitExceeded()`, and the x402-style gate. The phone is simulated by `web/scripts/phone-sim.mjs`, which signs exactly like the PWA.
+
 ## The problem
 
 An AI agent (Claude Code, a trading bot, an A2A worker) that needs to move money has two options today: a private key in `.env` — it can do **everything**, forever, one prompt injection away from draining the wallet — or **no key**, and you copy-paste transactions by hand. There is no way for a human to approve *this specific action* from a device they trust, with a verifiable on-chain record of *who* authorized *which* agent to do *what*.
