@@ -78,7 +78,7 @@ export function Story() {
             </p>
             <h3
               className={`mt-3 max-w-xl font-serif text-[32px] font-semibold leading-[1.12] tracking-tight transition-all duration-500 md:text-[44px] ${
-                active === i ? "text-foreground" : "text-foreground/45"
+                active === i ? "text-foreground" : "text-foreground/60"
               }`}
             >
               {s.title}

@@ -190,6 +190,13 @@ export default function Landing() {
               <span className="font-semibold text-foreground">Table 1.</span> Verified contracts on HSK Chain testnet (chainId 133).
             </p>
             <table className="w-full text-sm">
+              <thead className="border-b border-border text-left text-[12px] text-muted">
+                <tr>
+                  <th scope="col" className="px-5 py-2 font-medium">Contract</th>
+                  <th scope="col" className="hidden px-5 py-2 font-medium md:table-cell">Role</th>
+                  <th scope="col" className="px-5 py-2 text-right font-medium">Address</th>
+                </tr>
+              </thead>
               <tbody className="divide-y divide-border">
                 {CONTRACTS.map((c) => {
                   const a = ADDRESSES[c.key];

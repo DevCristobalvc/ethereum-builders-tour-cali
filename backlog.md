@@ -1094,7 +1094,7 @@ Un batch JSON-RPC de 201 llamadas se procesa entero. Poner un máximo (por ejemp
 
 ### PAP-36 — Mergear la rama a `main` (links rotos en la landing)
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** QA
 - **Depende de:** PAP-29, PAP-30
 
@@ -1103,3 +1103,33 @@ Un batch JSON-RPC de 201 llamadas se procesa entero. Poner un máximo (por ejemp
 
 **Criterios de aceptación**
 - PR mergeado; los 14 links externos de la landing responden 200.
+
+**Resumen post-desarrollo**
+- PR #1 mergeado (CI verde: forge, mcp, web). Producción se despliega desde `main`; los 14 links externos responden 200.
+
+### PAP-37 — Historial on-chain roto: el RPC limita `eth_getLogs`
+
+- **Estado:** done
+- **Épica:** QA
+- **Depende de:** —
+
+**Descripción**
+El RPC público de HSK testnet responde `block range too large` por encima de ~5000 bloques, y el historial arranca en el deploy (~390k bloques atrás). Fallaban en silencio las estadísticas en vivo de la landing y la pestaña **Stamps** de la PWA (`readStamps`, `readSecretStamps`).
+
+**Criterios de aceptación**
+- Landing muestra agentes, sellos y volumen reales; Stamps lista pagos y lecturas.
+
+**Resumen post-desarrollo**
+- `web/src/lib/logs.ts`: `eventLogs()` lee del API Etherscan-style del explorer (Blockscout, CORS abierto, sin límite de rango), filtra por el primer argumento indexado y decodifica con viem; si el explorer falla, cae al RPC sobre los últimos 4000 bloques.
+- Verificado contra la cadena: 7 `Paid` (70 demoUSDT), 1 para el agente #11, historia vacía para un agente inexistente; landing local muestra 11 · 7 · 70.
+
+### PAP-38 — Accesibilidad tras el rediseño
+
+- **Estado:** done
+- **Épica:** Landing
+
+**Descripción**
+Lighthouse bajó a 97: títulos inactivos de la historia con contraste 2.85:1 y la Tabla 1 sin encabezados.
+
+**Resumen post-desarrollo**
+- Títulos inactivos al 60 % de tinta; `<thead>` con `Contract · Role · Address`.
