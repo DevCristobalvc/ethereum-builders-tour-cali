@@ -167,6 +167,9 @@ async function handle(req: unknown): Promise<object | null> {
   }
 }
 
+/** Keeps one HTTP call from fanning out into hundreds of store reads. */
+const MAX_BATCH = 50;
+
 export async function POST(req: Request) {
   let body: unknown;
   try {
@@ -176,6 +179,8 @@ export async function POST(req: Request) {
   }
   if (Array.isArray(body)) {
     if (body.length === 0) return Response.json({ jsonrpc: "2.0", id: null, error: ERR.invalidRequest });
+    if (body.length > MAX_BATCH)
+      return Response.json({ jsonrpc: "2.0", id: null, error: { ...ERR.invalidRequest, data: { reason: `batch larger than ${MAX_BATCH}` } } });
     const out = (await Promise.all(body.map(handle))).filter(Boolean);
     return out.length ? Response.json(out) : new Response(null, { status: 204 });
   }

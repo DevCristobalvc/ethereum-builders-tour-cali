@@ -27,6 +27,15 @@ export const b64u = {
   dec: (s: string) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0)),
 };
 
+/** The stored wallet as its raw (stable) string, for useSyncExternalStore. */
+export function storedWalletRaw(): string | null {
+  try {
+    return localStorage.getItem(LS_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export function loadWallet(): StoredWallet | null {
   try {
     const raw = localStorage.getItem(LS_KEY);

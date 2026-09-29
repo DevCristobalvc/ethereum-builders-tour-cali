@@ -13,6 +13,7 @@ import { gasBalance, tokenBalance } from "@/lib/onchain";
 import { summarize } from "@/lib/actions";
 import { api } from "@/lib/relay";
 import type { RequestState } from "@/lib/types";
+import { useNow } from "@/lib/useNow";
 import { clearWallet, type StoredWallet } from "@/lib/wallet";
 
 export default function Home() {
@@ -32,6 +33,7 @@ function Dashboard({ w }: { w: StoredWallet }) {
   const [reqs, setReqs] = useState<RequestState[]>([]);
   const [err, setErr] = useState<string>();
   const [tab, setTab] = useState<Tab>("agents");
+  const now = useNow();
 
   const refresh = async () => {
     // Independent reads: a flaky RPC must not hide pending approvals from the relay.
@@ -47,13 +49,15 @@ function Dashboard({ w }: { w: StoredWallet }) {
     setErr(failed ? String((failed.reason as Error)?.message ?? failed.reason).split("\n")[0] : undefined);
   };
   useEffect(() => {
+    // refresh() only sets state after its awaits, never synchronously.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
     const t = setInterval(refresh, 5000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [w.address]);
 
-  const pending = reqs.filter((r) => r.status === "pending" && r.expiresAt > Date.now());
+  const pending = reqs.filter((r) => r.status === "pending" && r.expiresAt > now);
   const history = reqs.filter((r) => r.status !== "pending").slice(0, 10);
 
   return (
@@ -76,13 +80,13 @@ function Dashboard({ w }: { w: StoredWallet }) {
         {pending.length === 0 && <p className="text-sm text-muted mt-1">Nothing waiting. Ask your agent to do something.</p>}
         <div className="mt-2 flex flex-col gap-2">
           {pending.map((r) => (
-            <Link key={r.id} href={`/approve/${r.id}`} className="rounded-2xl border border-accent/40 bg-accent/5 p-4">
+            <Link key={r.id} href={`/approve/${r.id}`} className="rounded-lg border border-accent/40 bg-accent/5 p-4">
               <div className="flex justify-between text-sm">
                 <span className="font-semibold">{r.agentName}</span>
                 <Status s={r.status} />
               </div>
               <div className="text-sm text-muted">
-                {summarize(r.action).icon} <b className="text-foreground">{summarize(r.action).title}</b> {summarize(r.action).detail}
+                <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-accent">{summarize(r.action).tag}</span> <b className="text-foreground">{summarize(r.action).title}</b> {summarize(r.action).detail}
               </div>
             </Link>
           ))}
@@ -101,7 +105,7 @@ function Dashboard({ w }: { w: StoredWallet }) {
                 {history.map((r) => (
                   <Link key={r.id} href={`/approve/${r.id}`} className="flex justify-between py-2 text-sm">
                     <span>
-                      {summarize(r.action).icon} {summarize(r.action).title}
+                      <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-accent">{summarize(r.action).tag}</span> {summarize(r.action).title}
                     </span>
                     <Status s={r.status} />
                   </Link>
@@ -135,10 +139,10 @@ type Tab = "agents" | "vault" | "stamps";
 
 /** Thumb-reachable bottom navigation for the three views of the passport. */
 function TabBar({ tab, onChange, pending }: { tab: Tab; onChange: (t: Tab) => void; pending: number }) {
-  const items: { id: Tab; icon: string; label: string }[] = [
-    { id: "agents", icon: "🤖", label: "Agents" },
-    { id: "vault", icon: "🔑", label: "Vault" },
-    { id: "stamps", icon: "🛂", label: "Stamps" },
+  const items: { id: Tab; label: string }[] = [
+    { id: "agents", label: "Agents" },
+    { id: "vault", label: "Vault" },
+    { id: "stamps", label: "Stamps" },
   ];
   return (
     <>
@@ -150,9 +154,9 @@ function TabBar({ tab, onChange, pending }: { tab: Tab; onChange: (t: Tab) => vo
               key={it.id}
               onClick={() => onChange(it.id)}
               aria-current={tab === it.id ? "page" : undefined}
-              className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-xs font-medium ${tab === it.id ? "text-foreground" : "text-muted"}`}
+              className={`flex min-h-14 flex-col items-center justify-center gap-1.5 text-[13px] font-medium ${tab === it.id ? "text-foreground" : "text-muted"}`}
             >
-              <span className="text-lg leading-none">{it.icon}</span>
+              <span className={`h-0.5 w-6 rounded-full ${tab === it.id ? "bg-accent" : "bg-transparent"}`} aria-hidden />
               {it.label}
               {it.id === "agents" && pending > 0 && <span className="sr-only">{pending} pending</span>}
             </button>

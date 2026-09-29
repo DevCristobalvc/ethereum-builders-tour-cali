@@ -10,29 +10,36 @@ import type { PairState, RequestState } from "@/lib/types";
 export default function ShowPage({ params }: { params: Promise<{ kind: string; id: string }> }) {
   const { kind, id } = use(params);
   const isPair = kind === "pair";
+  const known = isPair || kind === "request";
   const target = `${typeof location !== "undefined" ? location.origin : ""}/${isPair ? "pair" : "approve"}/${id}`;
   const [svg, setSvg] = useState<string>("");
   const [state, setState] = useState<PairState | RequestState>();
+  const [missing, setMissing] = useState(false);
 
   useEffect(() => {
     QRCode.toString(target, { type: "svg", margin: 1, color: { dark: "#18182c", light: "#ffffff" } }).then(setSvg);
   }, [target]);
 
   useEffect(() => {
+    if (!known) return;
     let alive = true;
     const tick = async () => {
       try {
         const r = await fetch(`/api/${isPair ? "pair" : "requests"}/${id}`, { cache: "no-store" });
-        if (r.ok && alive) setState(await r.json());
+        if (!alive) return;
+        if (r.status === 404) {
+          setMissing(true);
+          clearInterval(t);
+        } else if (r.ok) setState(await r.json());
       } catch {}
     };
-    tick();
     const t = setInterval(tick, 2000);
+    tick();
     return () => {
       alive = false;
       clearInterval(t);
     };
-  }, [id, isPair]);
+  }, [id, isPair, known]);
 
   const resolved = state && state.status !== "pending";
   const req = !isPair ? (state as RequestState | undefined) : undefined;
@@ -45,7 +52,9 @@ export default function ShowPage({ params }: { params: Promise<{ kind: string; i
         <h1 className="text-2xl font-semibold tracking-tight">Passport Agent Protocol</h1>
       </div>
 
-      {!resolved ? (
+      {!known || missing ? (
+        <p className="max-w-md text-lg text-muted">This request does not exist or has expired. Ask your agent to start again.</p>
+      ) : !resolved ? (
         <>
           <p className="max-w-md text-lg text-muted">
             {isPair ? (
@@ -62,7 +71,7 @@ export default function ShowPage({ params }: { params: Promise<{ kind: string; i
             )}
           </p>
           <div
-            className="w-[min(70vw,420px)] rounded-3xl border border-border bg-white p-5 shadow-[0_20px_60px_-30px_rgba(0,153,255,0.5)]"
+            className="w-[min(70vw,420px)] rounded-xl border border-border bg-white p-5 shadow-[0_20px_60px_-30px_rgba(22,24,29,0.35)]"
             dangerouslySetInnerHTML={{ __html: svg }}
           />
           <p className="font-mono text-sm text-muted">{target}</p>
@@ -70,7 +79,7 @@ export default function ShowPage({ params }: { params: Promise<{ kind: string; i
         </>
       ) : (
         <>
-          <div className="text-7xl">{state.status === "approved" ? "✅" : "⛔"}</div>
+          <p className={`rounded-md border-2 px-4 py-1 font-mono text-sm font-medium uppercase tracking-[0.12em] ${state.status === "approved" ? "border-ok text-ok" : "border-bad text-bad"}`}>{state.status === "approved" ? "Approved" : "Rejected"}</p>
           <p className="text-2xl font-semibold">
             {isPair
               ? state.status === "approved"

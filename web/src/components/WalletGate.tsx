@@ -1,15 +1,18 @@
 "use client";
 /** Ensures the phone has a passkey-protected wallet before rendering children. */
-import { useEffect, useState, type ReactNode } from "react";
-import { createWallet, loadWallet, passkeySupported, type StoredWallet } from "@/lib/wallet";
+import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createWallet, passkeySupported, storedWalletRaw, type StoredWallet } from "@/lib/wallet";
 import { Button, Card, Notice } from "./ui";
 
+const noSubscribe = () => () => {};
+
 export function WalletGate({ children }: { children: (w: StoredWallet) => ReactNode }) {
-  const [wallet, setWallet] = useState<StoredWallet | null | undefined>(undefined);
+  // undefined while rendering on the server, then whatever localStorage holds.
+  const raw = useSyncExternalStore(noSubscribe, storedWalletRaw, () => undefined);
+  const [created, setCreated] = useState<StoredWallet | null>(null);
+  const wallet = useMemo(() => created ?? (raw === undefined ? undefined : raw ? (JSON.parse(raw) as StoredWallet) : null), [raw, created]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => setWallet(loadWallet()), []);
 
   if (wallet === undefined) return <p className="text-muted text-sm">Loading…</p>;
   if (wallet) return <>{children(wallet)}</>;
@@ -21,7 +24,7 @@ export function WalletGate({ children }: { children: (w: StoredWallet) => ReactN
       const w = await createWallet();
       // Sponsor a little gas so the first on-chain actions work without a faucet.
       fetch("/api/fund", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ address: w.address }) }).catch(() => {});
-      setWallet(w);
+      setCreated(w);
     } catch (e) {
       setErr((e as Error).message);
     } finally {

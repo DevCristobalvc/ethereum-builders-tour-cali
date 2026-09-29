@@ -999,7 +999,7 @@ El RPC de HSK testnet está balanceado; justo después de un receipt, otro nodo 
 
 ### PAP-31 — Landing con estilo white paper
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** Landing
 - **Depende de:** PAP-22 a PAP-28
 
@@ -1014,9 +1014,16 @@ Hacer la landing más profesional, tipo white paper: sin emojis, tipografía ser
 **Pruebas**
 - Grep de emojis en `web/src`; revisión visual desktop y móvil; Lighthouse.
 
+**Resumen post-desarrollo**
+- Tipografía: Source Serif 4 (títulos y cuerpo), IBM Plex Sans (UI), IBM Plex Mono (código y rótulos). Salen Cormorant, Barlow, Inter y Geist.
+- Paleta en tokens (`globals.css`): papel `#fbfaf7`, tinta `#16181d`, un solo acento azul tinta `#1f3b63`; bloques de código con tokens `code-*`. Sin grano, destellos ni barrido en botones; botones rectos.
+- Estructura de paper: bloque de título con *Abstract*, Figura 1 (la imagen en escala de grises con pie), secciones numeradas 1–7 (Problem, Design 2.1–2.5, Protocol, Integration, Sealed credentials, Service verification, Deployment), Tabla 1 de contratos y **References** [1]–[5].
+- **0 emojis** en `web/src` y `web/public` (landing y PWA): etiquetas de texto (`Payment`, `Secret`, `Seal`, `Pay`, `Read`), números `01…` en el diagrama y los pasos, estado `Approved`/`Rejected` en `/show`.
+- Verificado con Playwright (iPhone 13 y 1440 px): sin overflow horizontal, sin errores de consola. Pendiente: Lighthouse sobre producción y rehacer las capturas de `docs/img/landing`.
+
 ### PAP-32 — Errores de lint de React Compiler
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** QA
 - **Depende de:** —
 
@@ -1026,9 +1033,15 @@ Resolver los 5 errores de `eslint` (`Date.now()` durante el render, `setState` s
 **Criterios de aceptación**
 - `npx eslint .` en `web/` sin errores.
 
+**Resumen post-desarrollo**
+- `useNow()` (`useSyncExternalStore`, un tick por segundo) reemplaza `Date.now()` en el render de `/approve`, `/wallet` y `Agents`.
+- `WalletGate` lee la wallet con `useSyncExternalStore` (`storedWalletRaw`) en lugar de `setState` en un effect.
+- `/wallet`: `refresh()` solo hace `setState` después de sus `await`; queda un `eslint-disable` puntual con la razón.
+- `npx eslint .` sin errores ni warnings.
+
 ### PAP-33 — `/api/fund` sin límite: se puede vaciar el funder
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** QA / Seguridad
 - **Depende de:** —
 
@@ -1043,9 +1056,15 @@ Resolver los 5 errores de `eslint` (`Date.now()` durante el render, `setState` s
 **Pruebas**
 - Dirección aleatoria sin pairing → 403; segunda llamada para la misma dirección → no fondea.
 
+**Resumen post-desarrollo**
+- Una firma no sirve aquí (cualquiera genera llaves), así que el control son límites: una vez por dirección, 3 por IP al día y 30 por hora en total (contadores en el store del relay, best-effort). Por encima → 429 con mensaje que remite al faucet.
+- La dirección se marca como fondeada solo si la tx se confirmó; un fallo de envío responde 502 y permite reintentar.
+- Cuenta del funder con `nonceManager`.
+- Probado en local con un funder sin saldo: la 4.ª llamada desde la misma IP → 429.
+
 ### PAP-34 — Tope al tamaño de batch en `/api/rpc`
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** QA / Seguridad
 - **Depende de:** —
 
@@ -1055,9 +1074,12 @@ Un batch JSON-RPC de 201 llamadas se procesa entero. Poner un máximo (por ejemp
 **Criterios de aceptación**
 - Batch > límite → un solo error `-32600`; `rpc-test.ts` cubre el caso.
 
+**Resumen post-desarrollo**
+- `MAX_BATCH = 50` en `/api/rpc`; por encima, un único `-32600` con `data.reason`. Caso nuevo en `rpc-test.ts` (19/19).
+
 ### PAP-35 — `/show` y `/approve` con id inexistente
 
-- **Estado:** to do
+- **Estado:** done
 - **Épica:** UX
 - **Depende de:** —
 
@@ -1066,6 +1088,9 @@ Un batch JSON-RPC de 201 llamadas se procesa entero. Poner un máximo (por ejemp
 
 **Criterios de aceptación**
 - id desconocido → mensaje claro, sin QR ni spinner.
+
+**Resumen post-desarrollo**
+- `/show/<kind>/<id>`: un 404 del relay (o un `kind` desconocido) detiene el polling y muestra "This request does not exist or has expired".
 
 ### PAP-36 — Mergear la rama a `main` (links rotos en la landing)
 

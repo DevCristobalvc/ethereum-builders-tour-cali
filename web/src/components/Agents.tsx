@@ -6,12 +6,14 @@ import { ADDRESSES, DEMO_TOKEN_DECIMALS, TOKEN_SYMBOL } from "@/lib/chain";
 import { readGrant, type Grant } from "@/lib/onchain";
 import { api } from "@/lib/relay";
 import type { AgentRecord, SecretMeta } from "@/lib/types";
+import { useNow } from "@/lib/useNow";
 import { AddrLink, Card } from "./ui";
 
 type Row = AgentRecord & { grant?: Grant; secrets?: number };
 
 export function Agents({ owner }: { owner: string }) {
   const [rows, setRows] = useState<Row[]>();
+  const now = useNow();
 
   useEffect(() => {
     let alive = true;
@@ -58,7 +60,7 @@ export function Agents({ owner }: { owner: string }) {
     <>
       {rows.map((a) => {
         const g = a.grant;
-        const active = g?.active && Number(g.expiry) * 1000 > Date.now();
+        const active = g?.active && Number(g.expiry) * 1000 > now;
         const pct = g && g.limit > 0n ? Number((g.spent * 100n) / g.limit) : 0;
         return (
           <Card key={a.agentAddress} className="flex flex-col gap-3">
@@ -91,7 +93,7 @@ export function Agents({ owner }: { owner: string }) {
             )}
 
             <p className="text-sm text-muted">
-              🔑 {a.secrets ? `${a.secrets} sealed secret${a.secrets > 1 ? "s" : ""} it can ask for` : "no sealed secrets"}
+              {a.secrets ? `${a.secrets} sealed secret${a.secrets > 1 ? "s" : ""} it can ask for` : "no sealed secrets"}
             </p>
           </Card>
         );

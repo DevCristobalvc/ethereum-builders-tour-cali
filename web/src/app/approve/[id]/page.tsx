@@ -9,6 +9,7 @@ import { ADDRESSES } from "@/lib/chain";
 import { grantSecretVisa, payViaPassport, readSecretGrant, recordReveal, type Grant } from "@/lib/onchain";
 import { blobHash, peelOwnerLayer, typedData } from "@/lib/pap-core";
 import { api, signRelay } from "@/lib/relay";
+import { useNow } from "@/lib/useNow";
 import type { RequestState, SecretMeta } from "@/lib/types";
 import { unlock, type StoredWallet } from "@/lib/wallet";
 
@@ -24,8 +25,8 @@ export default function ApprovePage({ params }: { params: Promise<{ id: string }
 type SecretView = SecretMeta & { blob?: string };
 
 /** Mirrors AgentPassport.canAct(agentId, scope, 1). */
-const usable = (g: Grant) =>
-  g.active && (g.expiry === 0n || Number(g.expiry) * 1000 > Date.now()) && (g.limit === 0n || g.spent < g.limit);
+const usable = (g: Grant, now: number) =>
+  g.active && (g.expiry === 0n || Number(g.expiry) * 1000 > now) && (g.limit === 0n || g.spent < g.limit);
 
 function Approve({ id, w }: { id: string; w: StoredWallet }) {
   const [req, setReq] = useState<RequestState | null>();
@@ -34,6 +35,7 @@ function Approve({ id, w }: { id: string; w: StoredWallet }) {
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<string>();
   const [err, setErr] = useState<string>();
+  const now = useNow();
 
   useEffect(() => {
     api<RequestState>(`/api/requests/${id}`)
@@ -53,10 +55,10 @@ function Approve({ id, w }: { id: string; w: StoredWallet }) {
   const a = req.action;
   const s = summarize(a);
   const mine = req.ownerAddress.toLowerCase() === w.address.toLowerCase();
-  const secondsLeft = Math.max(0, Math.floor((req.expiresAt - Date.now()) / 1000));
+  const secondsLeft = Math.max(0, Math.floor((req.expiresAt - now) / 1000));
   const revealBlocked =
     a.type === "reveal" &&
-    (secret === null || (secret !== undefined && (secret.status !== "active" || !secret.blob)) || (grant != null && !usable(grant)));
+    (secret === null || (secret !== undefined && (secret.status !== "active" || !secret.blob)) || (grant != null && !usable(grant, now)));
 
   const resolve = async (status: "approved" | "rejected") => {
     setBusy(true);
@@ -114,7 +116,7 @@ function Approve({ id, w }: { id: string; w: StoredWallet }) {
         </div>
         <p className="mt-1 text-sm text-muted">wants to</p>
         <p className="my-2 text-3xl font-semibold tracking-tight">
-          <span className="mr-2">{s.icon}</span>
+          <span className="mr-2 align-middle font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-accent">{s.tag}</span>
           {s.title}
         </p>
         {a.type === "transfer" && (
@@ -126,7 +128,7 @@ function Approve({ id, w }: { id: string; w: StoredWallet }) {
         )}
         {a.type === "reveal" && (
           <>
-            <div className="my-3 rounded-2xl border border-accent/40 bg-accent/5 p-3 text-sm">
+            <div className="my-3 rounded-lg border border-accent/40 bg-accent/5 p-3 text-sm">
               <div className="text-xs uppercase tracking-wide text-muted">Reason given by the agent</div>
               <div className="mt-1 text-base">“{a.reason}”</div>
             </div>

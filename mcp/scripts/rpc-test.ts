@@ -34,6 +34,8 @@ r = await raw(JSON.stringify({ jsonrpc: "2.0", method: "pap_chainId" }));
 check("notification → 204, no body", r.status === 204 && r.json === null, r);
 r = await raw("[]");
 check("empty batch → -32600", r.json.error.code === -32600, r.json);
+r = await raw(JSON.stringify(Array.from({ length: 51 }, (_, i) => ({ jsonrpc: "2.0", method: "pap_chainId", id: i }))));
+check("batch over 50 → single -32600", !Array.isArray(r.json) && r.json.error.code === -32600, r.json);
 r = await raw(JSON.stringify([{ jsonrpc: "2.0", method: "pap_chainId", id: 1 }, { jsonrpc: "2.0", method: "nope", id: 2 }, { jsonrpc: "2.0", method: "pap_chainId" }]));
 check("mixed batch: 2 responses (notification dropped), ids kept", Array.isArray(r.json) && r.json.length === 2 && r.json[0].result === "0x85" && r.json[1].error.code === -32601, r.json);
 check("invalid params → -32602", (await rpc("pap_getRequest", {})).error.code === -32602);
