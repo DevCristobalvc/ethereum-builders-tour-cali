@@ -1,5 +1,6 @@
 import { isAddress, type Address, type Hex } from "viem";
 import { bad, json } from "@/lib/api";
+import { messageSignerKey } from "@/lib/secrets";
 import { verifySig } from "@/lib/sig";
 import { read, write } from "@/lib/store";
 import type { AgentRecord, PairState } from "@/lib/types";
@@ -40,6 +41,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       ownerAddress: payload.ownerAddress,
       agentId: payload.agentId,
       pairedAt: Date.now(),
+      agentPublicKey: pair.agentPublicKey,
+      ownerPublicKey: (await messageSignerKey("pair-approve", payload, body.sig as Hex)) ?? undefined,
     };
     await write("agent", pair.agentAddress.toLowerCase(), rec);
   }

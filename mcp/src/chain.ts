@@ -10,7 +10,7 @@ export const hskTestnet = defineChain({
   rpcUrls: { default: { http: [process.env.PAP_RPC_URL ?? "https://testnet.hsk.xyz"] } },
 });
 
-const pub = createPublicClient({ chain: hskTestnet, transport: http() });
+export const pub = createPublicClient({ chain: hskTestnet, transport: http() });
 
 const passportAbi = [
   {

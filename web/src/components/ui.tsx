@@ -35,7 +35,7 @@ export function Shell({ children, title, back }: { children: ReactNode; title?: 
 }
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-3xl border border-border bg-surface p-5 ${className}`}>{children}</section>;
+  return <section className={`rounded-xl border border-border bg-surface p-5 ${className}`}>{children}</section>;
 }
 
 export function Button({
@@ -51,7 +51,7 @@ export function Button({
   variant?: "primary" | "ghost" | "danger";
   type?: "button" | "submit";
 }) {
-  const base = "w-full rounded-full px-5 py-3.5 text-[15px] font-semibold transition active:scale-[0.99] disabled:opacity-40";
+  const base = "w-full rounded-md px-5 py-3.5 text-[15px] font-medium transition active:scale-[0.99] disabled:opacity-40";
   const v =
     variant === "primary"
       ? "bg-foreground text-white hover:bg-black"
@@ -69,7 +69,7 @@ export function Row({ k, v, mono = true }: { k: string; v: ReactNode; mono?: boo
   return (
     <div className="flex items-start justify-between gap-3 py-2 text-sm border-t border-border first:border-0">
       <span className="text-muted">{k}</span>
-      <span className={`text-right break-all ${mono ? "font-mono text-[13px]" : ""}`}>{v}</span>
+      <span className={`text-right ${mono ? "break-all font-mono text-[13px]" : "break-words"}`}>{v}</span>
     </div>
   );
 }
@@ -98,7 +98,7 @@ export function Status({ s }: { s: string }) {
 export function Notice({ children, kind = "info" }: { children: ReactNode; kind?: "info" | "error" | "ok" }) {
   const c =
     kind === "error" ? "bg-bad/5 text-bad" : kind === "ok" ? "bg-ok/10 text-ok" : "bg-background text-muted border border-border";
-  return <div className={`rounded-2xl px-4 py-3 text-sm ${c}`}>{children}</div>;
+  return <div className={`rounded-lg px-4 py-3 text-sm break-words [overflow-wrap:anywhere] ${c}`}>{children}</div>;
 }
 
 export function Label({ children }: { children: ReactNode }) {
@@ -106,4 +106,4 @@ export function Label({ children }: { children: ReactNode }) {
 }
 
 export const inputCls =
-  "mt-1 w-full rounded-2xl border border-border bg-surface px-4 py-3 font-mono text-[15px] outline-none focus:border-accent";
+  "mt-1 w-full rounded-lg border border-border bg-surface px-4 py-3 font-mono text-[15px] outline-none focus:border-accent";

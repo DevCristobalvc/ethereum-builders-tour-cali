@@ -120,7 +120,9 @@ function Pair({ id, w }: { id: string; w: StoredWallet }) {
             {steps.map((s, i) => (
               <li key={i} className="flex justify-between gap-2">
                 <span className={s.done ? "text-ok" : s.hash ? "text-accent" : "text-muted"}>
-                  {s.done ? "✓" : s.hash ? "…" : "○"} {s.label}
+                  <span className={`mr-2 inline-block h-2 w-2 rounded-full align-middle ${s.done ? "bg-ok" : s.hash ? "bg-accent" : "border border-muted"}`} aria-hidden />
+                  {s.label}
+                  <span className="sr-only">{s.done ? " (done)" : s.hash ? " (sent)" : " (pending)"}</span>
                 </span>
                 {s.hash && <TxLink hash={s.hash} />}
               </li>

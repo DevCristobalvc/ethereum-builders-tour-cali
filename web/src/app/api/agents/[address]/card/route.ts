@@ -1,4 +1,4 @@
-import { bad, json, baseUrl } from "@/lib/api";
+import { json, baseUrl } from "@/lib/api";
 import { ADDRESSES } from "@/lib/chain";
 import { read } from "@/lib/store";
 import type { AgentRecord } from "@/lib/types";

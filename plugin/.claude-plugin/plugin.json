@@ -1,0 +1,11 @@
+{
+  "name": "pap",
+  "displayName": "Passport Agent Protocol",
+  "version": "0.2.0",
+  "description": "Your agent has a passport; you stamp the visas from your phone. Payments, sealed secrets (API keys that open only with the agent's signature + your Face ID), visa-gated services and a local Ethereum signer — all approved on your phone, enforced on HSK Chain.",
+  "author": { "name": "DevCristobalvc", "url": "https://github.com/DevCristobalvc" },
+  "homepage": "https://pap.devcristobalvc.com",
+  "repository": "https://github.com/DevCristobalvc/ethereum-builders-tour-cali",
+  "license": "MIT",
+  "keywords": ["ethereum", "agents", "wallet", "secrets", "mcp", "erc-8004", "hashkey"]
+}

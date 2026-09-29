@@ -3,12 +3,17 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatEther, formatUnits } from "viem";
 import { Agents } from "@/components/Agents";
+import { PushToggle } from "@/components/PushToggle";
+import { Stamps } from "@/components/Stamps";
+import { Vault } from "@/components/Vault";
 import { WalletGate } from "@/components/WalletGate";
-import { AddrLink, Button, Card, Notice, Row, Shell, Status, short } from "@/components/ui";
+import { AddrLink, Button, Card, Notice, Row, Shell, Status } from "@/components/ui";
 import { ADDRESSES, DEMO_TOKEN_DECIMALS, TOKEN_SYMBOL } from "@/lib/chain";
 import { gasBalance, tokenBalance } from "@/lib/onchain";
+import { summarize } from "@/lib/actions";
 import { api } from "@/lib/relay";
 import type { RequestState } from "@/lib/types";
+import { useNow } from "@/lib/useNow";
 import { clearWallet, type StoredWallet } from "@/lib/wallet";
 
 export default function Home() {
@@ -27,25 +32,32 @@ function Dashboard({ w }: { w: StoredWallet }) {
   const [usdt, setUsdt] = useState<bigint>();
   const [reqs, setReqs] = useState<RequestState[]>([]);
   const [err, setErr] = useState<string>();
+  const [tab, setTab] = useState<Tab>("agents");
+  const now = useNow();
 
   const refresh = async () => {
-    try {
-      const [g, r] = await Promise.all([gasBalance(w.address), api<RequestState[]>(`/api/requests?owner=${w.address}`)]);
-      setGas(g);
-      setReqs(r);
-      if (ADDRESSES.DemoUSDT) setUsdt(await tokenBalance(w.address));
-    } catch (e) {
-      setErr((e as Error).message);
-    }
+    // Independent reads: a flaky RPC must not hide pending approvals from the relay.
+    const [g, r, u] = await Promise.allSettled([
+      gasBalance(w.address),
+      api<RequestState[]>(`/api/requests?owner=${w.address}`),
+      ADDRESSES.DemoUSDT ? tokenBalance(w.address) : Promise.resolve(undefined),
+    ]);
+    if (g.status === "fulfilled") setGas(g.value);
+    if (r.status === "fulfilled") setReqs(r.value);
+    if (u.status === "fulfilled") setUsdt(u.value);
+    const failed = [g, r, u].find((x) => x.status === "rejected") as PromiseRejectedResult | undefined;
+    setErr(failed ? String((failed.reason as Error)?.message ?? failed.reason).split("\n")[0] : undefined);
   };
   useEffect(() => {
+    // refresh() only sets state after its awaits, never synchronously.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
     const t = setInterval(refresh, 5000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [w.address]);
 
-  const pending = reqs.filter((r) => r.status === "pending" && r.expiresAt > Date.now());
+  const pending = reqs.filter((r) => r.status === "pending" && r.expiresAt > now);
   const history = reqs.filter((r) => r.status !== "pending").slice(0, 10);
 
   return (
@@ -68,36 +80,43 @@ function Dashboard({ w }: { w: StoredWallet }) {
         {pending.length === 0 && <p className="text-sm text-muted mt-1">Nothing waiting. Ask your agent to do something.</p>}
         <div className="mt-2 flex flex-col gap-2">
           {pending.map((r) => (
-            <Link key={r.id} href={`/approve/${r.id}`} className="rounded-2xl border border-accent/40 bg-accent/5 p-4">
+            <Link key={r.id} href={`/approve/${r.id}`} className="rounded-lg border border-accent/40 bg-accent/5 p-4">
               <div className="flex justify-between text-sm">
                 <span className="font-semibold">{r.agentName}</span>
                 <Status s={r.status} />
               </div>
               <div className="text-sm text-muted">
-                Send <b className="text-foreground">{r.action.amount} {TOKEN_SYMBOL}</b> to {short(r.action.to)}
+                <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-accent">{summarize(r.action).tag}</span> <b className="text-foreground">{summarize(r.action).title}</b> {summarize(r.action).detail}
               </div>
             </Link>
           ))}
         </div>
       </Card>
 
-      <Agents owner={w.address} />
+      <PushToggle w={w} />
 
-      {history.length > 0 && (
-        <Card>
-          <h2 className="font-semibold">History</h2>
-          <div className="mt-2 flex flex-col divide-y divide-border">
-            {history.map((r) => (
-              <Link key={r.id} href={`/approve/${r.id}`} className="flex justify-between py-2 text-sm">
-                <span>
-                  {r.action.amount} {TOKEN_SYMBOL} → {short(r.action.to)}
-                </span>
-                <Status s={r.status} />
-              </Link>
-            ))}
-          </div>
-        </Card>
+      {tab === "agents" && (
+        <>
+          <Agents owner={w.address} />
+          {history.length > 0 && (
+            <Card>
+              <h2 className="font-semibold">History</h2>
+              <div className="mt-2 flex flex-col divide-y divide-border">
+                {history.map((r) => (
+                  <Link key={r.id} href={`/approve/${r.id}`} className="flex justify-between py-2 text-sm">
+                    <span>
+                      <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-accent">{summarize(r.action).tag}</span> {summarize(r.action).title}
+                    </span>
+                    <Status s={r.status} />
+                  </Link>
+                ))}
+              </div>
+            </Card>
+          )}
+        </>
       )}
+      {tab === "vault" && <Vault w={w} />}
+      {tab === "stamps" && <Stamps owner={w.address} />}
 
       {err && <Notice kind="error">{err}</Notice>}
       <Button
@@ -111,6 +130,39 @@ function Dashboard({ w }: { w: StoredWallet }) {
       >
         Reset wallet
       </Button>
+      <TabBar tab={tab} onChange={setTab} pending={pending.length} />
+    </>
+  );
+}
+
+type Tab = "agents" | "vault" | "stamps";
+
+/** Thumb-reachable bottom navigation for the three views of the passport. */
+function TabBar({ tab, onChange, pending }: { tab: Tab; onChange: (t: Tab) => void; pending: number }) {
+  const items: { id: Tab; label: string }[] = [
+    { id: "agents", label: "Agents" },
+    { id: "vault", label: "Vault" },
+    { id: "stamps", label: "Stamps" },
+  ];
+  return (
+    <>
+      <div className="h-16" aria-hidden />
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+        <div className="mx-auto grid max-w-md grid-cols-3">
+          {items.map((it) => (
+            <button
+              key={it.id}
+              onClick={() => onChange(it.id)}
+              aria-current={tab === it.id ? "page" : undefined}
+              className={`flex min-h-14 flex-col items-center justify-center gap-1.5 text-[13px] font-medium ${tab === it.id ? "text-foreground" : "text-muted"}`}
+            >
+              <span className={`h-0.5 w-6 rounded-full ${tab === it.id ? "bg-accent" : "bg-transparent"}`} aria-hidden />
+              {it.label}
+              {it.id === "agents" && pending > 0 && <span className="sr-only">{pending} pending</span>}
+            </button>
+          ))}
+        </div>
+      </nav>
     </>
   );
 }

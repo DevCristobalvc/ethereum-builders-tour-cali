@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pap": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/pap.mjs"],
+      "env": {
+        "PAP_RELAY_URL": "https://pap.devcristobalvc.com"
+      }
+    }
+  }
+}

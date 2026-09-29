@@ -29,6 +29,12 @@ Any service can verify with one call — `canAct(agentId, scope, amount)` — th
 
 `GET /api/gate/oracle` is an x402-shaped border: `402` + challenge → the agent signs it with its identity key → the gate checks `getAgentWallet(agentId)` and `canAct()` on-chain → `200`. The agent calls it with `pap_call_gate` — no human involved, because the visa is active on-chain. ~100 lines, no facilitator. Details: [`docs/GATE.md`](docs/GATE.md).
 
+### Sealed secrets (iteration 4)
+
+Your API keys, handed to the agent with a **double signature**. You seal a key on your laptop (`pap seal openai`): it is encrypted in two layers — your phone's and the agent's — and the relay only stores ciphertext. When the agent needs it, it signs a request with a reason; you read the reason on your phone and approve with Face ID; the phone removes its layer, stamps the read on HSK Chain (`record()` on scope `secret:openai`, max reads + expiry enforced by the contract), and only the agent can open the rest. Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#sealed-secrets-double-signature) · threat model: [`docs/SECURITY.md`](docs/SECURITY.md#sealed-secrets--threat-model).
+
+Any agent can use it: **MCP** (`pap_secret`), **CLI** (`pap secret exec openai -- npm test`), **JSON-RPC** (`POST /api/rpc`, `pap_requestSecret`) or the **local Ethereum signer** (`pap rpc` → `cast` / viem / ethers without a private key). See [`docs/RPC.md`](docs/RPC.md).
+
 ## Try it (zero install)
 
 ```bash
@@ -46,6 +52,10 @@ Then, in Claude Code:
 On the phone, `/wallet` shows **Your agents** (each linked agent with its on-chain visa: spent / limit bar and expiry) and **Passport stamps** (the real `Paid` events read from HSK — amount, recipient, tx, and whether *you* or the *agent* executed it).
 
 The MCP server is a standalone bundle (`mcp/dist/pap.mjs`, committed). The agent's identity lives in `~/.pap/agent.json` — **no private key anywhere on the agent side**. Other MCP clients: `command: node`, `args: ["<repo>/mcp/dist/pap.mjs"]`, `env: PAP_RELAY_URL=https://pap.devcristobalvc.com`.
+
+Claude Code plugin (MCP server + skills, no clone): `/plugin marketplace add DevCristobalvc/ethereum-builders-tour-cali` then `/plugin install pap@pap`.
+
+Seal a credential for your agent (in **your** terminal, never in the chat): `node mcp/dist/pap-cli.mjs seal openai` → approve on the phone → the agent can ask for it with `pap_secret`. From the phone: **Wallet → Vault → Seal a secret**.
 
 No phone? `node web/scripts/phone-sim.mjs` approves for you; `node mcp/scripts/e2e.mjs` runs the whole flow (pair → pay → `LimitExceeded` → gate).
 
@@ -81,10 +91,12 @@ All verified on [Blockscout](https://testnet-explorer.hskchain.net). RPC `https:
 ```
 contracts/   Foundry — ERC-8004 registries, AgentPassport, DemoUSDT, ZK verifier · 25 unit + 3 fork tests
 web/         Next.js — landing, phone PWA (/wallet), relay API, gate (/api/gate/oracle)
-mcp/         MCP server (pap_connect, pap_transfer, pap_call_gate, pap_wait, pap_status, pap_contact_add)
+mcp/         MCP server (pap_connect, pap_transfer, pap_secret, pap_call_gate, …) + `pap` CLI (seal, secret, rpc)
+.claude/     Skills: pap-onboarding, pap-payments, pap-secrets, pap-seal, pap-gate, pap-rpc
+plugin/      Claude Code plugin (MCP + CLI + skills), published by .claude-plugin/marketplace.json
 .mcp.json    Registers the MCP server when you open the repo in Claude Code
 deployments/ Addresses (133.json) + ABIs
-docs/        ARCHITECTURE · GATE · PITCH · DEMO · VIDEO · SUBMISSION · STATE_OF_THE_ART · RESOURCES
+docs/        ARCHITECTURE · RPC · AGENTS · SECURITY · GATE · PITCH · DEMO · VIDEO · SUBMISSION · STATE_OF_THE_ART · RESOURCES
 ```
 
 Develop: `cd contracts && forge test` · `cd web && npm i && npm run dev` · `cd mcp && npm i && npm run build` (only if you change `mcp/src`).
@@ -101,7 +113,8 @@ Develop: `cd contracts && forge test` · `cd web && npm i && npm run dev` · `cd
 | **1 — Passport + visa + Face ID payment** | ERC-8004 registration from the phone, `grant`, `pay()` enforced on-chain, MCP tools | **live** |
 | **2 — x402-style gate** | `402` → signed challenge → on-chain visa check → `200`; `pap_call_gate` | **live** |
 | **3 — ZK passport** | Prove "I'm an authorized agent" with a Groth16 membership proof (`zkpjwt-core`) without revealing which one. Verifier + registry deployed. | contracts + tests done |
-| Later | RIP-7212 / AA so the passkey signs on-chain directly · agent-to-agent payments · nullifier in-circuit | — |
+| **4 — Sealed secrets + any agent** | API keys released with agent signature + Face ID (layered ECIES, EIP-712, reads counted on-chain); JSON-RPC `pap_*` + local EIP-1193 signer; push notifications; skills + Claude Code plugin | **built** (see `backlog.md`) |
+| Later | RIP-7212 / AA so the passkey signs on-chain directly · agent-to-agent payments · nullifier in-circuit · secrets without Face ID inside a visa (PAP-20) | — |
 
 ## Team
 

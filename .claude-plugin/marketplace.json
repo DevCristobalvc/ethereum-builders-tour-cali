@@ -1,0 +1,12 @@
+{
+  "name": "pap",
+  "owner": { "name": "DevCristobalvc", "url": "https://github.com/DevCristobalvc" },
+  "description": "Passport Agent Protocol — human-in-the-loop payments and sealed secrets for AI agents, on HSK Chain.",
+  "plugins": [
+    {
+      "name": "pap",
+      "source": "./plugin",
+      "description": "PAP MCP server + skills: pair with your phone, approved payments, sealed secrets, visa-gated services, local Ethereum signer."
+    }
+  ]
+}
