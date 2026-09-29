@@ -95,7 +95,7 @@ Solidity, Foundry, ERC-8004, HashKey Chain, Next.js, TypeScript, viem, WebAuthn,
 | IdentityRegistry on explorer | https://testnet-explorer.hskchain.net/address/0x9a074B1BD632D93b20BF468Cd23C0a9794F2e50F |
 | Human-approved payment tx | https://testnet-explorer.hskchain.net/tx/0xe15228455c80cd4c6e9a2229ab774e5d36ebd9e1ce63cf19cdefcfaec7b04e23 |
 | Agent-alone payment tx | https://testnet-explorer.hskchain.net/tx/0x629de0c7927fe7a44796698f1bb8c56d6a6d0f67d3ea1cda19541bc8c15c756f |
-| Demo video | **[OK CRISTÓBAL]** YouTube unlisted link — see `docs/VIDEO.md` |
+| Demo video | https://youtu.be/MEXjbFrVGXo (2:48, English narration, English + Spanish subtitles) |
 | Architecture / API reference | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/ARCHITECTURE.md |
 | Pitch | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/PITCH.md |
 | Gate (x402-shaped) | https://github.com/DevCristobalvc/ethereum-builders-tour-cali/blob/main/docs/GATE.md |
