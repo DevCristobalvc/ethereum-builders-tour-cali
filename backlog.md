@@ -549,7 +549,7 @@ Web Push (iOS 16.4+ with the PWA installed). The phone subscribes at pairing; th
 - `public/sw.js` (service worker): shows the notification and opens `/approve/:id` when tapped. `components/PushToggle.tsx` in `/wallet`: "Get approvals as notifications" button (asks for permission, subscribes, signs with Face ID); on an iPhone without the PWA installed it shows the "Add to Home Screen" guide.
 - Relay: `POST/GET /api/push/subscribe` (subscription signed by the owner, up to 5 devices) and `lib/push.ts` with `web-push` (VAPID). Sent with `after()` when a request or seal is created, so it **never delays or breaks** request creation; dead subscriptions (404/410) are removed.
 - The payload only carries the agent + the action type ("X wants to read a secret"): no amount, address, secret name or reason.
-- **Configuration pending on Vercel:** `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (and optionally `VAPID_SUBJECT`), generated with `npx web-push generate-vapid-keys`. Without them push stays off and the QR keeps working.
+- **Vercel configuration (done 2026-09-29):** `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` set for production and preview; `/api/push/subscribe` answers `enabled: true`. Without them push stays off and the QR keeps working.
 - Test: `mcp/scripts/push-test.ts` with a fake HTTPS push service that decrypts the message like a browser (RFC 8291): **10 checks**. Pending: test on a real iPhone.
 
 ---
